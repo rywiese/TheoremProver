@@ -1,4 +1,4 @@
-type const = Inf | Int of int | Real of float
+type const = Int of int
 
 type expr =
     | Const of const
@@ -7,20 +7,19 @@ type expr =
     | Times of expr * expr
 
 type stmt =
-    | Equals of expr * expr
-    | LessThan of expr * expr
-    | Not of stmt
+    | ForAll of string * stmt
+    | Exists of string * stmt
+    | Implies of stmt * stmt
     | And of stmt * stmt
     | Or of stmt * stmt
-    | Implies of stmt * stmt
-    | Exists of string * stmt
-    | ForAll of string * stmt
+    | Not of stmt
+    | Equals of expr * expr
+    | LessThan of expr * expr
+
 
 let rec exprToString e =
     match e with
-    | Const (Inf) -> "Infinity"
     | Const (Int i) -> string_of_int i
-    | Const (Real r) -> string_of_float r
     | Var v -> v
     | Plus (e1,e2) -> (exprToString e1) ^ " + " ^ (exprToString e2)
     | Times (e1,e2) -> (exprToString e1) ^ " * " ^ (exprToString e2)
@@ -32,8 +31,15 @@ let rec stmtToString s =
     | Equals (e1, e2) -> "(" ^ (exprToString e1) ^ ") = (" ^ (exprToString e2) ^ ")"
     | LessThan (e1, e2) -> "(" ^ (exprToString e1) ^ ") < (" ^ (exprToString e2) ^ ")"
     | Not e -> "~" ^ (stmtToString e)
-    | And (s1, s2) -> "(" ^ (stmtToString e1) ^ ") & (" ^ (stmtToString e2) ^ ")"
-    | Or (s1, s2) -> (stmtToString s1) ^ " or " ^ (stmtToString s2)
-    | Implies (s1, s2) -> (stmtToString s1) ^ " => " ^ (stmtToString s2)
-    | Exists (v, s) -> "There exists " ^ v ^ " such that " (stmtToString s)
-    | ForAll (v, s) -> "For all " ^ v ^ ", " (stmtToString s)
+    | And (s1, s2) -> "(" ^ (stmtToString s1) ^ ") & (" ^ (stmtToString s2) ^ ")"
+    | Or (s1, s2) -> "(" ^ (stmtToString s1) ^ ") or (" ^ (stmtToString s2) ^ ")"
+    | Implies (s1, s2) -> "(" ^ (stmtToString s1) ^ ") => (" ^ (stmtToString s2) ^ ")"
+    | Exists (v, s) -> "There exists " ^ v ^ " such that (" ^ (stmtToString s) ^ ")"
+    | ForAll (v, s) -> "For all " ^ v ^ ", (" ^ (stmtToString s) ^ ")"
+
+let rec prove s kb =
+    match s with
+    | Implies (s1,s2) -> ("Assume " ^ (stmtToString s1))::(prove s2 (s1::kb))
+    | _ -> [stmtToString s]
+
+prove (Implies (Equals (Var "x", Var "y"), Equals (Var "f(x)", Var "f(y)"))) []
