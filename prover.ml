@@ -7,6 +7,8 @@ type expr =
     | Times of expr * expr
 
 type stmt =
+    | True
+    | False
     | ForAll of string * stmt
     | Exists of string * stmt
     | Implies of stmt * stmt
@@ -25,6 +27,8 @@ let rec exprToString e =
 
 let rec stmtToString s =
     match s with
+    | True -> "True"
+    | False -> "False"
     | Equals (e1, e2) -> "(" ^ (exprToString e1) ^ ") = (" ^ (exprToString e2) ^ ")"
     | LessThan (e1, e2) -> "(" ^ (exprToString e1) ^ ") < (" ^ (exprToString e2) ^ ")"
     | Not e -> "~" ^ (stmtToString e)
@@ -41,6 +45,7 @@ let rec concat l1 l2 =
 
 let rec prove s kb =
     match s with
+    | True -> []
     | ForAll (v, s') -> prove s' kb
     | Exists (v, s') -> prove s' kb
     | Implies (s1, s2) -> ("Assume " ^ (stmtToString s1))::(prove s2 (s1::kb))
