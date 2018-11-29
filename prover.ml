@@ -1,3 +1,14 @@
+let explode s =
+  let rec expl n =
+    if n >= String.length s then []
+    else (String.get s n)::(expl (n+1)) in
+  expl 0
+
+let rec implode l =
+  match l with
+  | [] -> ""
+  | h::t -> (String.make 1 h) ^ (implode t)
+
 type const = Inf | Int of int | Real of float
 
 type expr =
