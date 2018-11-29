@@ -9,8 +9,6 @@ type expr =
 type stmt =
     | Equals of expr * expr
     | LessThan of expr * expr
-    | Plus of expr * expr * expr
-    | Times of expr * expr * expr
     | Not of stmt
     | And of stmt * stmt
     | Or of stmt * stmt
@@ -28,3 +26,14 @@ let rec exprToString e =
     | Times (e1,e2) -> (exprToString e1) ^ " * " ^ (exprToString e2)
 
 exprToString (Plus (Plus (Var "x", Times (Const (Int 4), Var "y")), Times (Const (Int 7), Const (Int 3))))
+
+let rec stmtToString s =
+    match s with
+    | Equals (e1, e2) -> "(" ^ (exprToString e1) ^ ") = (" ^ (exprToString e2) ^ ")"
+    | LessThan (e1, e2) -> "(" ^ (exprToString e1) ^ ") < (" ^ (exprToString e2) ^ ")"
+    | Not e -> "~" ^ (stmtToString e)
+    | And (s1, s2) -> "(" ^ (stmtToString e1) ^ ") & (" ^ (stmtToString e2) ^ ")"
+    | Or (s1, s2) -> (stmtToString s1) ^ " or " ^ (stmtToString s2)
+    | Implies (s1, s2) -> (stmtToString s1) ^ " => " ^ (stmtToString s2)
+    | Exists (v, s) -> "There exists " ^ v ^ " such that " (stmtToString s)
+    | ForAll (v, s) -> "For all " ^ v ^ ", " (stmtToString s)
