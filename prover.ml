@@ -110,11 +110,19 @@ let rec pushNot s =
     | Or (s1, s2) -> Or (pushNot s1, pushNot s2)
     | Not (s') -> Not (pushNot s')
     | _ -> s
-let rec standardize s =
+let rec distributeOr s =
     match s with
-    |
+    | ForAll (v, s') -> ForAll (v, distributeOr s')
+    | Exists (v, s') -> Exists (v, distributeOr s')
+    | Implies (s1, s2) -> Implies (distributeOr s1, distributeOr s2)
+    | And (s1, s2) -> And (distributeOr s1, distributeOr s2)
+    | Or (s1, And (s2, s3)) -> And (distributeOr (Or (s1, s2)), distributeOr (Or (s1, s3)))
+    | Or (And (s2, s3), s1) -> And (distributeOr (Or (s2, s1)), distributeOr (Or (s3, s1)))
+    | Not s' -> Not (distributeOr s')
+    | _ -> s
 
-let cnf s = pushNot (elimImp s)
+
+let cnf s = distributeOr (pushNot (elimImp s))
 
 (*
 let rec prove s kb =
