@@ -176,10 +176,47 @@ let standardize s =
         | Or (s1, s2) -> let s1' = standardize' s1 b d in
                                 let b' = union b (bvStmt s1') in
                                 Or (s1', standardize' s2 b' (difference d b'))
-        | Not s' -> standardize' s' b d
+        | Not s' -> Not (standardize' s' b d)
         | _ -> s
     in standardize' s [] (difference dummyVars (vars s))
-
+let skolemize s =
+    let rec inSV v sv =
+        match sv with
+        | [] -> false
+        | (v',qv)::t -> v = v' in
+    let rec findQVs v sv =
+        match sv with
+        | [] -> []
+        | ((v',qv)::t) -> if (v = v') then qv else findQVs v t in
+    let rec skolemizeExpr e sv =
+        match e with
+        | Var v -> if (inSV v sv) then
+                        (let qv = findQVs v sv in Const (Skol (v, qv)))
+                    else Var v
+        | Plus (e1, e2) -> Plus (skolemizeExpr e1 sv, skolemizeExpr e2 sv)
+        | Times (e1, e2) -> Times (skolemizeExpr e1 sv, skolemizeExpr e2 sv)
+        | _ -> e in
+    let rec skolemize' s sv qv =
+        match s with
+        | ForAll (v, s') -> ForAll (v, skolemize' s' sv (v::qv))
+        | Exists (v, s') -> skolemize' s' ((v,qv)::sv) qv
+        | Implies (s1, s2) -> Implies (skolemize' s1 sv qv, skolemize' s2 sv qv)
+        | And (s1, s2) -> And (skolemize' s1 sv qv, skolemize' s2 sv qv)
+        | Or (s1, s2) -> Or (skolemize' s1 sv qv, skolemize' s2 sv qv)
+        | Not (s') -> Not (skolemize' s' sv qv)
+        | Equals (e1, e2) -> Equals (skolemizeExpr e1 sv, skolemizeExpr e2 sv)
+        | LessThan (e1, e2) -> LessThan (skolemizeExpr e1 sv, skolemizeExpr e2 sv)
+        | _ -> s in
+    skolemize' s [] []
+let rec dropQuantifiers s =
+    match s with
+    | ForAll (v, s') -> dropQuantifiers s'
+    | Exists (v, s') -> Exists (v, dropQuantifiers s')
+    | Implies (s1, s2) -> Implies (dropQuantifiers s1, dropQuantifiers s2)
+    | And (s1, s2) -> And (dropQuantifiers s1, dropQuantifiers s2)
+    | Or (s1, s2) -> Or (dropQuantifiers s1, dropQuantifiers s2)
+    | Not (s') -> Not (dropQuantifiers s')
+    | _ -> s
 let rec distributeOr s =
     match s with
     | ForAll (v, s') -> ForAll (v, distributeOr s')
@@ -190,9 +227,7 @@ let rec distributeOr s =
     | Or (And (s2, s3), s1) -> And (distributeOr (Or (s2, s1)), distributeOr (Or (s3, s1)))
     | Not s' -> Not (distributeOr s')
     | _ -> s
-
-
-let cnf s = standardize (distributeOr (pushNot (elimImp s)))
+let cnf s = distributeOr (dropQuantifiers (skolemize (standardize (distributeOr (pushNot (elimImp s))))))
 
 (*
 let rec prove s kb =
