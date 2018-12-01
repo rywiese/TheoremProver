@@ -26,10 +26,6 @@ let rec difference l1 l2 =
     match l2 with
     | [] -> l1
     | h::t -> difference (remove h l1) t
-let rec getReplacement v l =
-    match l with
-    | [] -> v
-    | (v',r)::t -> if (v=v') then r else getReplacement v t
 
 (* Statement grammar *)
 type const = Int of int
@@ -50,10 +46,8 @@ type stmt =
     | Equals of expr * expr
     | LessThan of expr * expr
 
-(* Free variable functions *)
+(* getting variables functions *)
 let dummyVars = ["a"; "b"; "c"; "d"; "e"; "f"; "g"; "h"; "i"; "j"; "k"; "l"; "m"; "n"; "p"; "q"; "r"; "s"; "t"; "u"; "v"; "w"; "x"; "y"; "z"]
-let getDummy fv =
-    let (h::t) = (difference dummyVars fv) in h
 let rec fvExpr e =
     match e with
     | Const c -> []
@@ -68,6 +62,26 @@ let rec fvStmt s =
     | And (s1, s2) -> union (fvStmt s1) (fvStmt s2)
     | Or (s1, s2) -> union (fvStmt s1) (fvStmt s2)
     | Not s' -> fvStmt s'
+    | Equals (e1, e2) -> union (fvExpr e1) (fvExpr e2)
+    | LessThan (e1, e2) -> union (fvExpr e1) (fvExpr e2)
+    | _ -> []
+let rec bvStmt s =
+    match s with
+    | ForAll (v, s') -> union [v] (bvStmt s')
+    | Exists (v, s') -> union [v] (bvStmt s')
+    | Implies (s1, s2) -> union (bvStmt s1) (bvStmt s2)
+    | And (s1, s2) -> union (bvStmt s1) (bvStmt s2)
+    | Or (s1, s2) -> union (bvStmt s1) (bvStmt s2)
+    | Not s' -> fvStmt s'
+    | _ -> []
+let rec vars s =
+    match s with
+    | ForAll (v, s') -> union (vars s') [v]
+    | Exists (v, s') -> union (vars s') [v]
+    | Implies (s1, s2) -> union (vars s1) (vars s2)
+    | And (s1, s2) -> union (vars s1) (vars s2)
+    | Or (s1, s2) -> union (vars s1) (vars s2)
+    | Not s' -> vars s'
     | Equals (e1, e2) -> union (fvExpr e1) (fvExpr e2)
     | LessThan (e1, e2) -> union (fvExpr e1) (fvExpr e2)
     | _ -> []
@@ -110,31 +124,78 @@ let rec pushNot s =
     | Not (And (s1, s2)) -> Or (pushNot (Not s1), pushNot (Not s2))
     | Not (Or (s1, s2)) -> And (pushNot (Not s1), pushNot (Not s2))
     | Not (Not s') -> pushNot s'
-    | ForAll (v, s') -> (ForAll (v, pushNot s'))
-    | Exists (v, s') -> (Exists (v, pushNot s'))
+    | ForAll (v, s') -> ForAll (v, pushNot s')
+    | Exists (v, s') -> Exists (v, pushNot s')
     | Implies (s1, s2) -> Implies (pushNot s1, pushNot s2)
     | And (s1, s2) -> And (pushNot s1, pushNot s2)
     | Or (s1, s2) -> Or (pushNot s1, pushNot s2)
     | Not (s') -> Not (pushNot s')
     | _ -> s
-let rec replace s l =
-    let rec replaceExpr e l =
+let rec replace s old rep =
+    let rec replaceExpr e old rep =
         match e with
-        | Var v -> Var (getReplacement v l)
-        | Plus (e1, e2) -> Plus (replaceExpr e1 l, replaceExpr e2 l)
-        | Times (e1, e2) -> Times (replaceExpr e1 l, replaceExpr e2 l)
+        | Var v -> if (v = old) then Var rep else e
+        | Plus (e1, e2) -> Plus (replaceExpr e1 old rep, replaceExpr e2 old rep)
+        | Times (e1, e2) -> Times (replaceExpr e1 old rep, replaceExpr e2 old rep)
         | _ -> e
         in
     match s with
-    | ForAll (v, s') -> ForAll (getReplacement v l, replace s' l)
-    | Exists (v, s') -> Exists (getReplacement v l, replace s' l)
-    | Implies (s1, s2) -> Implies (replace s1 l, replace s2 l)
-    | And (s1, s2) -> And (replace s1 l, replace s2 l)
-    | Or (s1, s2) -> Or (replace s1 l, replace s2 l)
-    | Not s' -> Not (replace s' l)
-    | Equals (e1, e2) -> Equals (replaceExpr e1 l, replaceExpr e2 l)
-    | LessThan (e1, e2) -> LessThan (replaceExpr e1 l, replaceExpr e2 l)
+    | ForAll (v, s') -> ForAll (rep, replace s' old rep)
+    | Exists (v, s') -> Exists (rep, replace s' old rep)
+    | Implies (s1, s2) -> Implies (replace s1 old rep, replace s2 old rep)
+    | And (s1, s2) -> And (replace s1 old rep, replace s2 old rep)
+    | Or (s1, s2) -> Or (replace s1 old rep, replace s2 old rep)
+    | Not s' -> Not (replace s' old rep)
+    | Equals (e1, e2) -> Equals (replaceExpr e1 old rep, replaceExpr e2 old rep)
+    | LessThan (e1, e2) -> LessThan (replaceExpr e1 old rep, replaceExpr e2 old rep)
     | _ -> s
+let standardize s =
+    let rec standardize' s b d =
+        match s with
+        | ForAll (v, s') -> if (isIn v b) then
+                                let (v'::t) = d in
+                                ForAll (v', standardize' (replace s' v v') (union b [v']) t)
+                            else ForAll (v, standardize' s' b d)
+        | Exists (v, s') -> if (isIn v b) then
+                                let (v'::t) = d in
+                                Exists (v', standardize' (replace s' v v') (union b [v']) t)
+                            else Exists (v, standardize' s' b d)
+        | Implies (s1, s2) -> let s1' = standardize' s1 b d in
+                                let b' = union b (bvStmt s1') in
+                                Implies (s1', standardize' s2 b' (difference d b'))
+        | And (s1, s2) -> let s1' = standardize' s1 b d in
+                                let b' = union b (bvStmt s1') in
+                                And (s1', standardize' s2 b' (difference d b'))
+        | Or (s1, s2) -> let s1' = standardize' s1 b d in
+                                let b' = union b (bvStmt s1') in
+                                Or (s1', standardize' s2 b' (difference d b'))
+        | Not s' -> standardize' s' b d
+        | _ -> s
+    in standardize' s [] (difference dummyVars (vars s))
+
+(* let rec standardize s dv =
+    match s with
+    | And
+    | ForAll (v, s') -> ForAll (v, standardize s' dv)
+    | Exists (v, s') -> Exists (v, standardize s' dv)
+    | Implies (s1, s2) -> let n = (intersection (vars s1) (vars s2)) in
+        match n with
+        | [] -> s
+        | _ -> let (ments, assgnd) = (assign n dv) in
+                let (ments', assgnd') = (assign n (difference dv assgnd)) in
+            Implies (standardize (replace s1 ments) (difference dv assgnd), standardize (replace s2 ments') (difference dv assgnd'))
+    | And (s1, s2) -> let n = (intersection (vars s1) (vars s2)) in
+        match n with
+        | [] -> s
+        | _ -> let (ments, assgnd) = (assign n dv) in
+            And (standardize (replace s1 ments), standardize (replace s2 (assign n (difference assgnd dv))))
+    | Or (s1, s2) -> let n = (intersection (vars s1) (vars s2)) in
+        match n with
+        | [] -> s
+        | _ -> let (ments, assgnd) = (assign n dv) in
+            Or (standardize (replace s1 ments), standardize (replace s2 (assign n (difference assgnd dv))))
+    | Not (s') -> Not (standardize s' dv)
+    | _ -> s *)
 let rec distributeOr s =
     match s with
     | ForAll (v, s') -> ForAll (v, distributeOr s')
@@ -147,7 +208,7 @@ let rec distributeOr s =
     | _ -> s
 
 
-let cnf s = distributeOr (pushNot (elimImp s))
+let cnf s = standardize (distributeOr (pushNot (elimImp s)))
 
 (*
 let rec prove s kb =
