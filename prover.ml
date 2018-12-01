@@ -26,6 +26,10 @@ let rec difference l1 l2 =
     match l2 with
     | [] -> l1
     | h::t -> difference (remove h l1) t
+let rec getReplacement v l =
+    match l with
+    | [] -> v
+    | (v',r)::t -> if (v=v') then r else getReplacement v t
 
 (* Statement grammar *)
 type const = Int of int
@@ -47,6 +51,9 @@ type stmt =
     | LessThan of expr * expr
 
 (* Free variable functions *)
+let dummyVars = ["a"; "b"; "c"; "d"; "e"; "f"; "g"; "h"; "i"; "j"; "k"; "l"; "m"; "n"; "p"; "q"; "r"; "s"; "t"; "u"; "v"; "w"; "x"; "y"; "z"]
+let getDummy fv =
+    let (h::t) = (difference dummyVars fv) in h
 let rec fvExpr e =
     match e with
     | Const c -> []
@@ -109,6 +116,24 @@ let rec pushNot s =
     | And (s1, s2) -> And (pushNot s1, pushNot s2)
     | Or (s1, s2) -> Or (pushNot s1, pushNot s2)
     | Not (s') -> Not (pushNot s')
+    | _ -> s
+let rec replace s l =
+    let rec replaceExpr e l =
+        match e with
+        | Var v -> Var (getReplacement v l)
+        | Plus (e1, e2) -> Plus (replaceExpr e1 l, replaceExpr e2 l)
+        | Times (e1, e2) -> Times (replaceExpr e1 l, replaceExpr e2 l)
+        | _ -> e
+        in
+    match s with
+    | ForAll (v, s') -> ForAll (getReplacement v l, replace s' l)
+    | Exists (v, s') -> Exists (getReplacement v l, replace s' l)
+    | Implies (s1, s2) -> Implies (replace s1 l, replace s2 l)
+    | And (s1, s2) -> And (replace s1 l, replace s2 l)
+    | Or (s1, s2) -> Or (replace s1 l, replace s2 l)
+    | Not s' -> Not (replace s' l)
+    | Equals (e1, e2) -> Equals (replaceExpr e1 l, replaceExpr e2 l)
+    | LessThan (e1, e2) -> LessThan (replaceExpr e1 l, replaceExpr e2 l)
     | _ -> s
 let rec distributeOr s =
     match s with
