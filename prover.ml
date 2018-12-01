@@ -28,7 +28,7 @@ let rec difference l1 l2 =
     | h::t -> difference (remove h l1) t
 
 (* Statement grammar *)
-type const = Int of int
+type const = Int of int | Name of string | Skol of string * string list
 type expr =
     | Const of const
     | Var of string
@@ -87,9 +87,16 @@ let rec vars s =
     | _ -> []
 
 (* Converting to strings for printing *)
+let rec listToString l =
+    match l with
+    | [] -> ""
+    | h::[] -> h
+    | h::t -> h ^ "," ^ (listToString t)
 let rec exprToString e =
     match e with
     | Const (Int i) -> string_of_int i
+    | Const (Name n) -> n
+    | Const (Skol (s,l)) -> s ^"(" ^ (listToString l) ^ ")"
     | Var v -> v
     | Plus (e1,e2) -> (exprToString e1) ^ " + " ^ (exprToString e2)
     | Times (e1,e2) -> (exprToString e1) ^ " * " ^ (exprToString e2)
@@ -173,29 +180,6 @@ let standardize s =
         | _ -> s
     in standardize' s [] (difference dummyVars (vars s))
 
-(* let rec standardize s dv =
-    match s with
-    | And
-    | ForAll (v, s') -> ForAll (v, standardize s' dv)
-    | Exists (v, s') -> Exists (v, standardize s' dv)
-    | Implies (s1, s2) -> let n = (intersection (vars s1) (vars s2)) in
-        match n with
-        | [] -> s
-        | _ -> let (ments, assgnd) = (assign n dv) in
-                let (ments', assgnd') = (assign n (difference dv assgnd)) in
-            Implies (standardize (replace s1 ments) (difference dv assgnd), standardize (replace s2 ments') (difference dv assgnd'))
-    | And (s1, s2) -> let n = (intersection (vars s1) (vars s2)) in
-        match n with
-        | [] -> s
-        | _ -> let (ments, assgnd) = (assign n dv) in
-            And (standardize (replace s1 ments), standardize (replace s2 (assign n (difference assgnd dv))))
-    | Or (s1, s2) -> let n = (intersection (vars s1) (vars s2)) in
-        match n with
-        | [] -> s
-        | _ -> let (ments, assgnd) = (assign n dv) in
-            Or (standardize (replace s1 ments), standardize (replace s2 (assign n (difference assgnd dv))))
-    | Not (s') -> Not (standardize s' dv)
-    | _ -> s *)
 let rec distributeOr s =
     match s with
     | ForAll (v, s') -> ForAll (v, distributeOr s')
