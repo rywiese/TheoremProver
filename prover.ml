@@ -45,6 +45,7 @@ type stmt =
     | Not of stmt
     | Equals of expr * expr
     | LessThan of expr * expr
+type subst = (expr * expr) list
 
 (* getting variables functions *)
 let dummyVars = ["a"; "b"; "c"; "d"; "e"; "f"; "g"; "h"; "i"; "j"; "k"; "l"; "m"; "n"; "p"; "q"; "r"; "s"; "t"; "u"; "v"; "w"; "x"; "y"; "z"]
@@ -229,13 +230,26 @@ let rec distributeOr s =
     | _ -> s
 let cnf s = distributeOr (dropQuantifiers (skolemize (standardize (distributeOr (pushNot (elimImp s))))))
 
-(*
-let rec prove s kb =
+(*  split cnf statement into list of clauses *)
+let rec splitCNF s =
     match s with
-    | True -> []
-    | ForAll (v, s') -> prove s' kb
-    | Exists (v, s') -> prove s' kb
-    | Implies (s1, s2) -> ("Assume " ^ (stmtToString s1))::(prove s2 (s1::kb))
-    | And (s1, s2) -> concat (("Proof of " ^ s1 ^ ":")::(prove s1 kb)) (("Proof of " ^ s2 ^ ":")::(prove s2 kb))
-    | _ -> ["Not sure yet"]
-*)
+    | And (s1, s2) -> union (splitCNF s1) (splitCNF s2)
+    | _ -> [s]
+(* split kb into list of clauses in cnf form *)
+let rec splitKB kb =
+    match kb with
+    | [] -> []
+    | h::t -> union (splitCNF (cnf h)) (splitKB t)
+(* split a clause into list of literals *)
+let rec splitClause s =
+    match s with
+    | Or (s1, s2) -> union (splitClauses s1) (splitClauses s2)
+    | _ -> [s]
+let rec splittyboi l =
+    match l with
+    | [] -> []
+    | h::t -> (splitClauses h)::(splittyboi t)
+let rec resolve c1 c2 =
+    let rec resolve' e c2 =
+        match c2 with
+        | [] ->
