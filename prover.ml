@@ -230,6 +230,20 @@ let rec distributeOr s =
     | _ -> s
 let cnf s = distributeOr (dropQuantifiers (skolemize (standardize (distributeOr (pushNot (elimImp s))))))
 
+let rec unifyVar v x sub =
+    let rec getSub v sub =
+        match sub with
+        | [] -> Var "None"
+        | (e1,e2)::t -> if v=e1 then e2 else getSub v t in
+    match getSub v sub with
+    | Var "None" -> (
+        match getSub x sub with
+        | Var "None" -> 
+        | val -> unify v val sub
+        )
+    | val -> unify val x sub
+and let rec unify s1 s2 sub =
+
 (*  split cnf statement into list of clauses *)
 let rec splitCNF s =
     match s with
@@ -245,10 +259,6 @@ let rec splitClause s =
     match s with
     | Or (s1, s2) -> union (splitClauses s1) (splitClauses s2)
     | _ -> [s]
-let rec splittyboi l =
-    match l with
-    | [] -> []
-    | h::t -> (splitClauses h)::(splittyboi t)
 let rec resolve c1 c2 =
     let rec resolve' e c2 =
         match c2 with
