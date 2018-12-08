@@ -14,3 +14,9 @@ let s = Not (ForAll ("x", Equals (Var "x", Var "y"))) in stmtToString (cnf s)
 
 (*      For all epsilon, there exists K st for all j, [K<j] => [a_j < epsilon]      *)
 let s = ForAll ("epsilon", Exists ("K", ForAll ("j", Implies (LessThan (Var "K", Var "j"), LessThan (Var "a_j", Var "epsilon"))))) in stmtToString (cnf s)
+
+let s1 = Plus(Var "x", Const (Int 7)) in let s2 = Plus(Const (Int 3), Var "y") in unify s1 s2 (Subst [])
+
+unifyVar (Var "x") (Const (Int 3)) (Subst [])
+
+getSub (Const (Int 3)) (Subst [])

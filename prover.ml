@@ -45,7 +45,7 @@ type stmt =
     | Not of stmt
     | Equals of expr * expr
     | LessThan of expr * expr
-type subst = (expr * expr) list
+type subst = Failure | Subst of (expr * expr) list
 
 (* getting variables functions *)
 let dummyVars = ["a"; "b"; "c"; "d"; "e"; "f"; "g"; "h"; "i"; "j"; "k"; "l"; "m"; "n"; "p"; "q"; "r"; "s"; "t"; "u"; "v"; "w"; "x"; "y"; "z"]
@@ -233,16 +233,45 @@ let cnf s = distributeOr (dropQuantifiers (skolemize (standardize (distributeOr 
 let rec unifyVar v x sub =
     let rec getSub v sub =
         match sub with
-        | [] -> Var "None"
-        | (e1,e2)::t -> if v=e1 then e2 else getSub v t in
-    match getSub v sub with
-    | Var "None" -> (
-        match getSub x sub with
-        | Var "None" -> 
-        | val -> unify v val sub
+        | Subst [] -> Var "None"
+        | Subst ((e1,e2)::t) -> if v=e1 then e2 else getSub v (Subst t)
+        | _ -> Var "None" in
+    match sub with
+    | Failure -> Failure
+    | Subst (theta) -> (
+        let valu = (getSub v sub) in
+        if valu <> (Var "None") then Failure (* unify valu x sub *)
+        else (
+            let valu = (getSub x sub) in
+            if valu <> (Var "None") then Failure (* unify v valu sub *)
+            else (
+                let Var v' = v in
+                if isIn v' (fvExpr x) then Failure
+                else Subst ((v,x)::theta)
+            )
         )
-    | val -> unify val x sub
-and let rec unify s1 s2 sub =
+    )
+and unify e1 e2 sub =
+    let substUnion s1 s2 =
+        match (s1, s2) with
+        | Failure,_ -> Failure
+        | _,Failure -> Failure
+        | (Subst l1), (Subst l2) -> Subst (union l1 l2) in
+    match sub with
+    | Failure -> Failure
+    | _ -> (
+        if e1 = e2 then sub
+        else (
+            match (e1, e2) with
+            | (Var v),_ -> unifyVar e1 e2 sub
+            | _,(Var v) -> unifyVar e2 e1 sub
+            | (Plus (e11, e12)),(Plus (e21, e22)) -> substUnion (unify e11 e21 sub) (unify e12 e22 sub)
+            | (Times (e11, e12)),(Times (e21, e22)) -> substUnion (unify e11 e21 sub) (unify e12 e22 sub)
+            | _ -> Failure
+        )
+    )
+
+
 
 (*  split cnf statement into list of clauses *)
 let rec splitCNF s =
