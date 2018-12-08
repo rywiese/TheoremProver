@@ -270,25 +270,3 @@ and unify e1 e2 sub =
             | _ -> Failure
         )
     )
-
-
-
-(*  split cnf statement into list of clauses *)
-let rec splitCNF s =
-    match s with
-    | And (s1, s2) -> union (splitCNF s1) (splitCNF s2)
-    | _ -> [s]
-(* split kb into list of clauses in cnf form *)
-let rec splitKB kb =
-    match kb with
-    | [] -> []
-    | h::t -> union (splitCNF (cnf h)) (splitKB t)
-(* split a clause into list of literals *)
-let rec splitClause s =
-    match s with
-    | Or (s1, s2) -> union (splitClauses s1) (splitClauses s2)
-    | _ -> [s]
-let rec resolve c1 c2 =
-    let rec resolve' e c2 =
-        match c2 with
-        | [] ->
