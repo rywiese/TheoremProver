@@ -321,3 +321,7 @@ let resolveLit l c =
             | Subst s -> (listToClause (concat f t))::(resolveLit' lit (append h f) t)
             ) in
     resolveLit' l [] (clauseToList c)
+let rec resolve c1 c2 =
+    match c1 with
+    | Or (s1, s2) -> union (resolve s1 c2) (resolve s2 c2)
+    | _ -> resolveLit c1 c2

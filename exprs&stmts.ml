@@ -23,7 +23,7 @@ unifyStmt s1 s2
 
 let s1 = Or (ForAll ("x", Equals (Plus(Var "x", Const (Int 7)),Plus(Var "x", Const (Int 7)))), Equals ((Const (Int 2)), Var "Ry")) in
 let s2 = Not (ForAll ("y", Equals (Plus(Const (Int 3), Var "y"),Plus(Const (Int 3), Var "y")))) in
-resolveLit (cnf s2) (cnf s1)
+resolve (cnf s2) (cnf s1)
 unifyStmt (cnf(Not(Not(ForAll ("y", Equals (Plus(Const (Int 3), Var "y"),Plus(Const (Int 3), Var "y"))))))) (cnf(ForAll ("x", Equals (Plus(Var "x", Const (Int 7)),Plus(Var "x", Const (Int 7))))))
 unifyStmt (Not (cnf s2)) (Equals (Plus (Var "x", Const (Int 7)), Plus (Var "x", Const (Int 7))))
 
