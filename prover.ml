@@ -26,6 +26,10 @@ let rec difference l1 l2 =
     match l2 with
     | [] -> l1
     | h::t -> difference (remove h l1) t
+let rec append e l =
+    match l with
+    | [] -> e::[]
+    | h::t -> h::(append e t)
 
 (* Statement grammar *)
 type const = Int of int | Name of string | Skol of string * string list
@@ -125,6 +129,12 @@ let rec elimImp s =
     | Not (s') -> Not (elimImp s')
     | _ -> s
 let rec pushNot s =
+    let rec pushNotExpr e =
+        match e with
+        | Const (Skol (v,l)) -> Var v
+        | Plus (e1,e2) -> Plus (pushNotExpr e1, pushNotExpr e2)
+        | Times (e1,e2) -> Times (pushNotExpr e1, pushNotExpr e2)
+        | _ -> e in
     match s with
     | Not (ForAll (v, s')) -> Exists (v, pushNot (Not s'))
     | Not (Exists (v, s')) -> ForAll (v, pushNot (Not s'))
@@ -132,12 +142,16 @@ let rec pushNot s =
     | Not (And (s1, s2)) -> Or (pushNot (Not s1), pushNot (Not s2))
     | Not (Or (s1, s2)) -> And (pushNot (Not s1), pushNot (Not s2))
     | Not (Not s') -> pushNot s'
+    | Not (Equals (e1, e2)) -> Not (Equals (pushNotExpr e1, pushNotExpr e2))
+    | Not (LessThan (e1, e2)) -> Not (LessThan (pushNotExpr e1, pushNotExpr e2))
     | ForAll (v, s') -> ForAll (v, pushNot s')
     | Exists (v, s') -> Exists (v, pushNot s')
     | Implies (s1, s2) -> Implies (pushNot s1, pushNot s2)
     | And (s1, s2) -> And (pushNot s1, pushNot s2)
     | Or (s1, s2) -> Or (pushNot s1, pushNot s2)
     | Not (s') -> Not (pushNot s')
+    | Equals (e1, e2) -> Equals (pushNotExpr e1, pushNotExpr e2)
+    | LessThan (e1, e2) -> LessThan (pushNotExpr e1, pushNotExpr e2)
     | _ -> s
 let rec replace s old rep =
     let rec replaceExpr e old rep =
@@ -230,6 +244,7 @@ let rec distributeOr s =
     | _ -> s
 let cnf s = distributeOr (dropQuantifiers (skolemize (standardize (distributeOr (pushNot (elimImp s))))))
 
+(* Unification *)
 let substUnion s1 s2 =
     match (s1, s2) with
     | Failure,_ -> Failure
@@ -284,3 +299,25 @@ let unifyStmt s1 s2 =
         | (LessThan (e11,e12)), (LessThan (e21,e22)) -> substUnion (unifyExpr e11 e21) (unifyExpr e12 e22)
         | _ -> Failure in
     unifyStmt' s1 s2 (Subst [])
+
+(* Resolution *)
+let clauseToList c =
+    let rec clauseToList' c l =
+        match c with
+        | Or (s1, s2) -> union (clauseToList' s1 l) (clauseToList' s2 l)
+        | _ -> c::l in
+    clauseToList' c []
+let rec listToClause l =
+    match l with
+    | h::[] -> h
+    | h::t -> Or(h, (listToClause t))
+let resolveLit l c =
+    let rec resolveLit' lit f cl =
+        match cl with
+        | [] -> []
+        | h::t -> (
+            match unifyStmt (cnf (Not lit)) h with
+            | Failure -> resolveLit' lit (append h f) t
+            | Subst s -> (listToClause (concat f t))::(resolveLit' lit (append h f) t)
+            ) in
+    resolveLit' l [] (clauseToList c)

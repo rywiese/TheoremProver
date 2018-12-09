@@ -6,7 +6,7 @@ let s = (Implies (Equals (Var "x", Var "y"), Equals (Var "f(x)", Var "f(y)"))) i
 
 (*      For all x, [For all y, (2y = 1) => (x+y = 1)] => [There exists y st (y+x = 1)]         *)
 let s = (ForAll ("x", Implies (ForAll ("y", Implies (Equals (Times (Const (Int 2), Var "y"), Const (Int 1)), Equals (Plus (Var "x", Var "y"), Const (Int 1)))), Exists ("y", Equals (Plus (Var
-    "y", Var "x"), Const (Int 1)))))) in splittyboi (split (cnf s))
+    "y", Var "x"), Const (Int 1)))))) in  ( (cnf s))
 
 let s = Not (ForAll ("x", Not (Or (Equals (Var "x", Var "y"), Equals (Var "x", Var "y"))))) in fvStmt s
 
@@ -21,6 +21,11 @@ let s1 = ForAll ("x", Equals (Plus(Var "x", Const (Int 7)),Plus(Var "x", Const (
 let s2 = ForAll ("y", Equals (Plus(Const (Int 3), Var "y"),Plus(Const (Int 3), Var "y"))) in
 unifyStmt s1 s2
 
+let s1 = Or (ForAll ("x", Equals (Plus(Var "x", Const (Int 7)),Plus(Var "x", Const (Int 7)))), Equals ((Const (Int 2)), Var "Ry")) in
+let s2 = Not (ForAll ("y", Equals (Plus(Const (Int 3), Var "y"),Plus(Const (Int 3), Var "y")))) in
+resolveLit (cnf s2) (cnf s1)
+unifyStmt (cnf(Not(Not(ForAll ("y", Equals (Plus(Const (Int 3), Var "y"),Plus(Const (Int 3), Var "y"))))))) (cnf(ForAll ("x", Equals (Plus(Var "x", Const (Int 7)),Plus(Var "x", Const (Int 7))))))
+unifyStmt (Not (cnf s2)) (Equals (Plus (Var "x", Const (Int 7)), Plus (Var "x", Const (Int 7))))
 
 unifyVar (Var "x") (Const (Int 3)) (Subst [])
 
