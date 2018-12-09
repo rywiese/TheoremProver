@@ -1,8 +1,15 @@
 let kb = [
-(Implies (Equals (Var "x", Var "y"), Equals (Var "f(x)", Var "f(y)")));
-(ForAll ("x", Implies (ForAll ("y", Implies (Equals (Times (Const (Int 2), Var "y"), Const (Int 1)), Equals (Plus (Var "x", Var "y"), Const (Int 1)))), Exists ("y", Equals (Plus (Var "y", Var "x"), Const (Int 1))))));
-(Not (ForAll ("x", Not (Or (Equals (Var "x", Var "y"), Equals (Var "x", Var "y"))))));
-(Not (ForAll ("x", Equals (Var "x", Var "y"))));
-(ForAll ("epsilon", Exists ("K", ForAll ("j", Implies (LessThan (Var "K", Var "j"), LessThan (Var "a_j", Var "epsilon"))))));
-]
-in splitKB kb
+ForAll("x", Equals(Var "x", Var "x"));
+ForAll("x", ForAll("y", Implies(Equals(Var "x", Var "y"),Equals(Var "y", Var "x"))));
+ForAll("x", ForAll("y", ForAll ("z", Implies (And (Equals (Var "x", Var "y"), Equals (Var "y", Var "z")), Equals (Var "x", Var "z")))));
+Equals (Var "Ry", Var "Arman");
+Equals (Var "Parker", Var "Arman")
+] in
+let alpha = Not (Equals (Var "Ry", Var "Parker")) in
+resolution alpha kb
+
+let rec printKB kb =
+    match kb with
+    | [] -> ""
+    | h::t -> (stmtToString h) ^ "\n" ^ (printKB t)
+printKB kb

@@ -38,6 +38,10 @@ let rec cross l1 l2 =
     match l1 with
     | [] -> []
     | h::t -> union (cross' h l2) (cross t l2)
+let rec subset s1 s2 =
+    match s1 with
+    | [] -> true
+    | (h::t) -> if isIn h s2 then subset t s2 else false
 
 (* Statement grammar *)
 type const = Int of int | Name of string | Skol of string * string list
@@ -320,6 +324,12 @@ let rec listToClause l =
     | [] -> False
     | h::[] -> h
     | h::t -> Or(h, (listToClause t))
+let cnfToList c =
+    let rec cnfToList' c l =
+        match c with
+        | And (s1, s2) -> union (cnfToList' s1 l) (cnfToList' s2 l)
+        | _ -> c::l in
+    cnfToList' c []
 let resolveLit l c =
     let rec resolveLit' lit f cl =
         match cl with
@@ -334,10 +344,19 @@ let rec resolve c1 c2 =
     match c1 with
     | Or (s1, s2) -> union (resolve s1 c2) (resolve s2 c2)
     | _ -> resolveLit c1 c2
-let rec resolution alpha kb =
-    let rec getResolvents
-
-    let clauses = clauseToList (cnf (And (Not alpha) kb)) in
-    match cross clauses clauses with
-    | [] -> []
-    | h::t -> resolve
+let resolution alpha kb =
+    let getResolvents cl =
+        let rec getResolvents' l =
+            match l with
+            | [] -> []
+            | (c1, c2)::t -> union (resolve c1 c2) (getResolvents' t) in
+        getResolvents' (cross cl cl) in
+    let rec resolution' clauses old =
+        let resolvents = getResolvents clauses in
+        if isIn False resolvents then true
+        else (
+            let noo = union old resolvents in
+            if subset noo clauses then false
+            else resolution' (union noo clauses) noo
+        ) in
+    resolution' ((cnf (Not alpha))::kb) []
