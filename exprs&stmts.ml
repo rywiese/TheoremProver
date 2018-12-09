@@ -17,6 +17,11 @@ let s = ForAll ("epsilon", Exists ("K", ForAll ("j", Implies (LessThan (Var "K",
 
 let s1 = Plus(Var "x", Const (Int 7)) in let s2 = Plus(Const (Int 3), Var "y") in unify s1 s2 (Subst [])
 
+let s1 = ForAll ("x", Equals (Plus(Var "x", Const (Int 7)),Plus(Var "x", Const (Int 7)))) in
+let s2 = ForAll ("y", Equals (Plus(Const (Int 3), Var "y"),Plus(Const (Int 3), Var "y"))) in
+unifyStmt s1 s2
+
+
 unifyVar (Var "x") (Const (Int 3)) (Subst [])
 
 getSub (Const (Int 3)) (Subst [])

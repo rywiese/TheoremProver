@@ -230,6 +230,11 @@ let rec distributeOr s =
     | _ -> s
 let cnf s = distributeOr (dropQuantifiers (skolemize (standardize (distributeOr (pushNot (elimImp s))))))
 
+let substUnion s1 s2 =
+    match (s1, s2) with
+    | Failure,_ -> Failure
+    | _,Failure -> Failure
+    | (Subst l1), (Subst l2) -> Subst (union l1 l2)
 let rec unifyVar v x sub =
     let rec getSub v sub =
         match sub with
@@ -252,11 +257,6 @@ let rec unifyVar v x sub =
         )
     )
 and unify e1 e2 sub =
-    let substUnion s1 s2 =
-        match (s1, s2) with
-        | Failure,_ -> Failure
-        | _,Failure -> Failure
-        | (Subst l1), (Subst l2) -> Subst (union l1 l2) in
     match sub with
     | Failure -> Failure
     | _ -> (
@@ -270,3 +270,16 @@ and unify e1 e2 sub =
             | _ -> Failure
         )
     )
+let unifyStmt s1 s2 =
+    let rec unifyStmt' s1 s2 sub =
+        match (s1,s2) with
+        | (ForAll (v1, s1')), (ForAll (v2, s2')) -> unifyStmt' s1' s2' sub
+        | (Exists (v1, s1')), (Exists (v2, s2')) -> unifyStmt' s1' s2' sub
+        | (Implies (s11, s12)), (Implies (s21, s22)) -> substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub)
+        | (And (s11, s12)), (And (s21, s22)) -> substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub)
+        | (Or (s11, s12)), (Or (s21, s22)) -> substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub)
+        | (Not s1'), (Not s2') -> unifyStmt' s1' s2' sub
+        | (Equals (e11,e12)), (Equals (e21,e22)) -> substUnion (unify e11 e21 sub) (unify e12 e22 sub)
+        | (LessThan (e11,e12)), (LessThan (e21,e22)) -> substUnion (unify e11 e21 sub) (unify e12 e22 sub)
+        | _ -> Failure in
+    unifyStmt' s1 s2 (Subst [])
