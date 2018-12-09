@@ -245,10 +245,10 @@ let rec unifyVar v x sub =
     | Failure -> Failure
     | Subst (theta) -> (
         let valu = (getSub v sub) in
-        if valu <> (Var "None") then Failure (* unify valu x sub *)
+        if valu <> (Var "None") then unify' valu x sub
         else (
             let valu = (getSub x sub) in
-            if valu <> (Var "None") then Failure (* unify v valu sub *)
+            if valu <> (Var "None") then unify' v valu sub
             else (
                 let Var v' = v in
                 if isIn v' (fvExpr x) then Failure
@@ -256,7 +256,7 @@ let rec unifyVar v x sub =
             )
         )
     )
-and unify e1 e2 sub =
+and unify' e1 e2 sub =
     match sub with
     | Failure -> Failure
     | _ -> (
@@ -265,11 +265,12 @@ and unify e1 e2 sub =
             match (e1, e2) with
             | (Var v),_ -> unifyVar e1 e2 sub
             | _,(Var v) -> unifyVar e2 e1 sub
-            | (Plus (e11, e12)),(Plus (e21, e22)) -> substUnion (unify e11 e21 sub) (unify e12 e22 sub)
-            | (Times (e11, e12)),(Times (e21, e22)) -> substUnion (unify e11 e21 sub) (unify e12 e22 sub)
+            | (Plus (e11, e12)),(Plus (e21, e22)) -> substUnion (unify' e11 e21 sub) (unify' e12 e22 sub)
+            | (Times (e11, e12)),(Times (e21, e22)) -> substUnion (unify' e11 e21 sub) (unify' e12 e22 sub)
             | _ -> Failure
         )
     )
+let unifyExpr e1 e2 = unify' e1 e2 (Subst [])
 let unifyStmt s1 s2 =
     let rec unifyStmt' s1 s2 sub =
         match (s1,s2) with
@@ -279,7 +280,7 @@ let unifyStmt s1 s2 =
         | (And (s11, s12)), (And (s21, s22)) -> substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub)
         | (Or (s11, s12)), (Or (s21, s22)) -> substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub)
         | (Not s1'), (Not s2') -> unifyStmt' s1' s2' sub
-        | (Equals (e11,e12)), (Equals (e21,e22)) -> substUnion (unify e11 e21 sub) (unify e12 e22 sub)
-        | (LessThan (e11,e12)), (LessThan (e21,e22)) -> substUnion (unify e11 e21 sub) (unify e12 e22 sub)
+        | (Equals (e11,e12)), (Equals (e21,e22)) -> substUnion (unifyExpr e11 e21) (unifyExpr e12 e22)
+        | (LessThan (e11,e12)), (LessThan (e21,e22)) -> substUnion (unifyExpr e11 e21) (unifyExpr e12 e22)
         | _ -> Failure in
     unifyStmt' s1 s2 (Subst [])
