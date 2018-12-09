@@ -30,6 +30,14 @@ let rec append e l =
     match l with
     | [] -> e::[]
     | h::t -> h::(append e t)
+let rec cross l1 l2 =
+    let rec cross' e l2 =
+        match l2 with
+        | [] -> []
+        | h::t -> union [(e,h);] (cross' e t) in
+    match l1 with
+    | [] -> []
+    | h::t -> union (cross' h l2) (cross t l2)
 
 (* Statement grammar *)
 type const = Int of int | Name of string | Skol of string * string list
@@ -309,6 +317,7 @@ let clauseToList c =
     clauseToList' c []
 let rec listToClause l =
     match l with
+    | [] -> False
     | h::[] -> h
     | h::t -> Or(h, (listToClause t))
 let resolveLit l c =
@@ -325,3 +334,10 @@ let rec resolve c1 c2 =
     match c1 with
     | Or (s1, s2) -> union (resolve s1 c2) (resolve s2 c2)
     | _ -> resolveLit c1 c2
+let rec resolution alpha kb =
+    let rec getResolvents
+
+    let clauses = clauseToList (cnf (And (Not alpha) kb)) in
+    match cross clauses clauses with
+    | [] -> []
+    | h::t -> resolve
