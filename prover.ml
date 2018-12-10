@@ -319,6 +319,11 @@ let unifyStmt s1 s2 =
     unifyStmt' s1 s2 (Subst [])
 
 (* Resolution *)
+let rec splitKB kb =
+    match kb with
+    | [] -> []
+    | (And (s1,s2))::t -> splitKB (s1::s2::t)
+    | h::t -> h::(splitKB t)
 let clauseToList c =
     let rec clauseToList' c l =
         match c with
@@ -327,7 +332,7 @@ let clauseToList c =
     clauseToList' c []
 let rec listToClause l =
     match l with
-    | [] -> False
+    | [] -> True
     | h::[] -> h
     | h::t -> Or(h, (listToClause t))
 let cnfToList c =
@@ -342,14 +347,18 @@ let resolveLit l c =
         | [] -> []
         | h::t -> (
             match unifyStmt (cnf (Not lit)) h with
-            | Failure -> resolveLit' lit (append h f) t
+            | Failure -> (resolveLit' lit (append h f) t)
             | Subst s -> (listToClause (concat f t))::(resolveLit' lit (append h f) t)
             ) in
     resolveLit' l [] (clauseToList c)
 let rec resolve c1 c2 =
-    match c1 with
-    | Or (s1, s2) -> union (resolve s1 c2) (resolve s2 c2)
-    | _ -> resolveLit c1 c2
+    match (unifyStmt (cnf (Not c1)) (cnf c2)) with
+    | Subst s -> [False]
+    | Failure -> (
+        match c1 with
+        | Or (s1, s2) -> union (resolve s1 c2) (resolve s2 c2)
+        | _ -> resolveLit c1 c2
+    )
 let resolution alpha kb =
     let getResolvents cl =
         let rec getResolvents' l =
@@ -365,7 +374,7 @@ let resolution alpha kb =
             if subset noo clauses then false
             else resolution' (union noo clauses) noo
         ) in
-    resolution' ((cnf (Not alpha))::kb) []
+    resolution' (splitKB (cnf(Not alpha)::kb)) []
 
 let resolveLitProof l c proof =
     let rec resolveLitProof' lit f cl proof =
@@ -399,8 +408,8 @@ let resolutionProof alpha kb =
         if isIn False resolvents then ("Q.E.D")::proof'
         else (
             let noo = union old resolvents in
-            if subset noo clauses then ["This statement is not entailed!"]
+            if subset noo clauses then ("This statement is not entailed!")::proof'
             else resolutionProof' (union noo clauses) noo proof'
         ) in
-    let proof = resolutionProof' ((cnf (Not alpha))::kb) [] ["Suppose "^stmtToString(Not alpha)] in
+    let proof = resolutionProof' (splitKB (cnf(Not alpha)::kb)) [] ["Suppose "^stmtToString(Not alpha)] in
     revlist proof
