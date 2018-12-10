@@ -6,8 +6,8 @@ ForAll("x", ForAll("y", ForAll ("z", Implies (And (Equals (Var "x", Var "y"), Eq
 Equals (Const (Name "Ry"), Const (Name "Arman"));
 Equals (Const (Name "Arman"), Const (Name "Parker"))
 ] in
-let alpha = Not (Equals (Const (Name "Ry"), Const (Name "Ry")))  in
-resolution alpha kb
+let alpha = (Equals (Const (Name "Ry"), Const (Name "Parker")))  in
+resolutionProof alpha kb
 
 let s1 = ForAll("x", Equals(Var "x", Var "x")) in
 let s2 = (Equals (Const (Name "Ry"), Const (Name "Ry"))) in

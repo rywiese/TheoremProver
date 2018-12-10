@@ -382,18 +382,22 @@ let resolveLitProof l c proof =
         | [] -> [],proof
         | h::t -> (
             match unifyStmt (cnf (Not lit)) h with
-            | Failure -> let (l, proof') = (resolveLitProof' lit (append h f) t proof) in (l, proof')
+            | Failure -> (resolveLitProof' lit (append h f) t proof)
             | Subst s -> let clause = (listToClause (concat f t)) in
                     let (l, proof') = (resolveLitProof' lit (append h f) t proof) in
                     (clause::l), (((stmtToString (Not lit)) ^ " and " ^ (stmtToString h) ^ " therefore " ^ (stmtToString clause))::proof')
             ) in
     resolveLitProof' l [] (clauseToList c) proof
 let rec resolveProof c1 c2 proof =
-    match c1 with
-    | Or (s1, s2) -> let (resolve1, proof1) = resolveProof s1 c2 proof in
-            let (resolve2, proof2) = resolveProof s2 c2 proof in
-            ((union resolve1 resolve2), proof2)
-    | _ -> (resolveLitProof c1 c2 proof)
+    match (unifyStmt (cnf (Not c1)) (cnf c2)) with
+    | Subst s -> [False], (((stmtToString (Not c1)) ^ " and " ^ (stmtToString c2) ^ ", which is a contradiction.")::proof)
+    | Failure -> (
+        match c1 with
+        | Or (s1, s2) -> let (resolve1, proof1) = resolveProof s1 c2 proof in
+                let (resolve2, proof2) = resolveProof s2 c2 proof in
+                ((union resolve1 resolve2), proof2)
+        | _ -> (resolveLitProof c1 c2 proof)
+    )
 let resolutionProof alpha kb =
     let getResolventsProof cl proof =
         let rec getResolventsProof' l proof =
