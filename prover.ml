@@ -346,6 +346,58 @@ let cnfToList c =
         | _ -> c::l in
     cnfToList' c []
 
+let addForAlls s =
+    let rec addForAlls' s vl =
+        match vl with
+        | [] -> s
+        | h::t -> ForAll(h, addForAlls' s t) in
+    addForAlls' s (fvStmt s)
+let rec availSkols s bv =
+    let rec availSkolsExpr e bv =
+        match e with
+        | Const (Skol (v,vl)) -> if subset vl bv then [e] else []
+        | Plus (e1,e2) -> union (availSkolsExpr e1 bv) (availSkolsExpr e2 bv)
+        | Times (e1,e2) -> union (availSkolsExpr e1 bv) (availSkolsExpr e2 bv)
+        | _ -> [] in
+    match s with
+    | ForAll (v,s') -> availSkols s' bv
+    | And (s1,s2) -> union (availSkols s1 bv) (availSkols s2 bv)
+    | Or (s1, s2) -> union (availSkols s1 bv) (availSkols s2 bv)
+    | Not s' -> availSkols s' bv
+    | Equals (e1,e2) -> union (availSkolsExpr e1 bv) (availSkolsExpr e2 bv)
+    | LessThan (e1,e2) -> union (availSkolsExpr e1 bv) (availSkolsExpr e2 bv)
+    | _ -> []
+let rec replaceSkols s skol =
+    let rec replaceSkolsExpr e skol =
+        match e with
+        | Const (Skol (v,vl)) -> if e = skol then Var v else e
+        | Plus (e1,e2) -> Plus ((replaceSkolsExpr e1 skol), (replaceSkolsExpr e2 skol))
+        | Times (e1,e2) -> Times ((replaceSkolsExpr e1 skol), (replaceSkolsExpr e2 skol))
+        | _ -> e in
+    match s with
+    | ForAll (v,s') -> ForAll (v, replaceSkols s' skol)
+    | And (s1,s2) -> And ((replaceSkols s1 skol),(replaceSkols s2 skol))
+    | Or (s1,s2) -> Or ((replaceSkols s1 skol),(replaceSkols s2 skol))
+    | Not s' -> Not (replaceSkols s' skol)
+    | Equals (e1,e2) -> Equals ((replaceSkolsExpr e1 skol),(replaceSkolsExpr e2 skol))
+    | LessThan (e1,e2) -> LessThan ((replaceSkolsExpr e1 skol),(replaceSkolsExpr e2 skol))
+    | _ -> s
+let addExists s =
+    let rec addExists' s bv =
+        let rec insertAndReplace s avail =
+            match avail with
+            | [] -> s
+            | h::t -> let Const (Skol (v,l)) = h in Exists(v, ((replaceSkols s h))) in
+        match insertAndReplace s (availSkols s bv) with
+        | ForAll (v, s') -> ForAll (v, (addExists' s' (v::bv)))
+        | Exists (v, s') -> Exists (v, (addExists' s' bv))
+        | And (s1,s2) -> And ((addExists' s1 bv),(addExists' s2 bv))
+        | Or (s1,s2) -> Or ((addExists' s1 bv),(addExists' s2 bv))
+        | Not s' -> Not (addExists' s' bv)
+        | _ -> s in
+    addExists' s []
+let expandCNF s = addExists (addForAlls s)
+
 (* These functions may be out of date since further modifications to
 the algorithms are being done on the 'proof' versions *)
 let resolveLit l c =
