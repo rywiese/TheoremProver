@@ -319,11 +319,6 @@ let unifyStmt s1 s2 =
     unifyStmt' s1 s2 (Subst [])
 
 (* Resolution *)
-(* let rec splitKB kb =
-    match kb with
-    | [] -> []
-    | (And (s1,s2))::t -> splitKB (s1::s2::t)
-    | h::t -> h::(splitKB t) *)
 let rec splitKB kb =
     match kb with
     | And (s1,s2) -> concat (splitKB s1) (splitKB s2)
@@ -350,6 +345,9 @@ let cnfToList c =
         | And (s1, s2) -> union (cnfToList' s1 l) (cnfToList' s2 l)
         | _ -> c::l in
     cnfToList' c []
+
+(* These functions may be out of date since further modifications to
+the algorithms are being done on the 'proof' versions *)
 let resolveLit l c =
     let rec resolveLit' lit f cl =
         match cl with
@@ -384,6 +382,7 @@ let resolution alpha kb =
             else resolution' (union noo clauses) noo
         ) in
     resolution' (prepare ((Not alpha)::kb)) []
+(* *** *)
 
 let resolveLitProof l c proof =
     let rec resolveLitProof' lit f cl proof =
