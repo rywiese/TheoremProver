@@ -387,7 +387,7 @@ let addExists s =
         let rec insertAndReplace s avail =
             match avail with
             | [] -> s
-            | h::t -> let Const (Skol (v,l)) = h in Exists(v, ((replaceSkols s h))) in
+            | h::t -> let Const (Skol (v,l)) = h in Exists(v, (replaceSkols s h)) in
         match insertAndReplace s (availSkols s bv) with
         | ForAll (v, s') -> ForAll (v, (addExists' s' (v::bv)))
         | Exists (v, s') -> Exists (v, (addExists' s' bv))
