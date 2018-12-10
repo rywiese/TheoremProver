@@ -370,31 +370,37 @@ let resolution alpha kb =
 let resolveLitProof l c proof =
     let rec resolveLitProof' lit f cl proof =
         match cl with
-        | [] -> []
+        | [] -> [],proof
         | h::t -> (
             match unifyStmt (cnf (Not lit)) h with
-            | Failure -> resolveLitProof' lit (append h f) t proof
-            | Subst s -> (listToClause (concat f t))::(resolveLitProof' lit (append h f) t) (proof)
+            | Failure -> let (l, proof') = (resolveLitProof' lit (append h f) t proof) in (l, proof')
+            | Subst s -> let clause = (listToClause (concat f t)) in
+                    let (l, proof') = (resolveLitProof' lit (append h f) t proof) in
+                    (clause::l), (((stmtToString (Not lit)) ^ " and " ^ (stmtToString h) ^ " therefore " ^ (stmtToString clause))::proof')
             ) in
     resolveLitProof' l [] (clauseToList c) proof
 let rec resolveProof c1 c2 proof =
     match c1 with
-    | Or (s1, s2) -> union (resolveProof s1 c2 proof) (resolveProof s2 c2 proof)
-    | _ -> resolveLitProof c1 c2 proof
+    | Or (s1, s2) -> let (resolve1, proof1) = resolveProof s1 c2 proof in
+            let (resolve2, proof2) = resolveProof s2 c2 proof in
+            ((union resolve1 resolve2), proof2)
+    | _ -> (resolveLitProof c1 c2 proof)
 let resolutionProof alpha kb =
     let getResolventsProof cl proof =
         let rec getResolventsProof' l proof =
             match l with
-            | [] -> []
-            | (c1, c2)::t -> union (resolveProof c1 c2 proof) (getResolventsProof' t proof) in
+            | [] -> [],proof
+            | (c1, c2)::t -> let (resolvents, proof1) = (getResolventsProof' t proof) in
+                        let (l,proof2) = (resolveProof c1 c2 proof1) in
+                        ((union l resolvents), proof2) in
         getResolventsProof' (cross cl cl) proof in
     let rec resolutionProof' clauses old proof =
-        let resolvents = getResolventsProof clauses proof in
-        if isIn False resolvents then ("Q.E.D")::proof
+        let (resolvents, proof') = getResolventsProof clauses proof in
+        if isIn False resolvents then ("Q.E.D")::proof'
         else (
             let noo = union old resolvents in
             if subset noo clauses then ["This statement is not entailed!"]
-            else resolutionProof' (union noo clauses) noo proof
+            else resolutionProof' (union noo clauses) noo proof'
         ) in
     let proof = resolutionProof' ((cnf (Not alpha))::kb) [] ["Suppose "^stmtToString(Not alpha)] in
     revlist proof
