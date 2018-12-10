@@ -319,11 +319,20 @@ let unifyStmt s1 s2 =
     unifyStmt' s1 s2 (Subst [])
 
 (* Resolution *)
-let rec splitKB kb =
+(* let rec splitKB kb =
     match kb with
     | [] -> []
     | (And (s1,s2))::t -> splitKB (s1::s2::t)
-    | h::t -> h::(splitKB t)
+    | h::t -> h::(splitKB t) *)
+let rec splitKB kb =
+    match kb with
+    | And (s1,s2) -> concat (splitKB s1) (splitKB s2)
+    | _ -> [kb]
+let rec andifyKB kb =
+    match kb with
+    | [] -> True
+    | h::t -> And (h, (andifyKB t))
+let prepare kb = splitKB (cnf (andifyKB kb))
 let clauseToList c =
     let rec clauseToList' c l =
         match c with
@@ -374,7 +383,7 @@ let resolution alpha kb =
             if subset noo clauses then false
             else resolution' (union noo clauses) noo
         ) in
-    resolution' (splitKB (cnf(Not alpha)::kb)) []
+    resolution' (prepare ((Not alpha)::kb)) []
 
 let resolveLitProof l c proof =
     let rec resolveLitProof' lit f cl proof =
@@ -415,5 +424,5 @@ let resolutionProof alpha kb =
             if subset noo clauses then ("This statement is not entailed!")::proof'
             else resolutionProof' (union noo clauses) noo proof'
         ) in
-    let proof = resolutionProof' (splitKB (cnf(Not alpha)::kb)) [] ["Suppose "^stmtToString(Not alpha)] in
+    let proof = resolutionProof' (prepare ((Not alpha)::kb)) [] ["Suppose "^stmtToString(Not alpha)] in
     revlist proof
