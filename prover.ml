@@ -492,7 +492,8 @@ let resolutionProof alpha kb =
             match l with
             | [] -> [],proof
             | (c1, c2)::t -> let (resolvents, proof1) = (getResolventsProof' t proof) in
-                        let (l,proof2) = (resolveProof c1 c2 proof1) in
+                        if (isIn False resolvents) then let h::t = proof1 in (resolvents, proof1)
+                        else let (l,proof2) = (resolveProof c1 c2 proof1) in
                         ((union l resolvents), proof2) in
         getResolventsProof' (cross cl cl) proof in
     let rec resolutionProof' clauses old proof =
