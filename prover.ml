@@ -42,6 +42,12 @@ let rec subset s1 s2 =
     match s1 with
     | [] -> true
     | (h::t) -> if isIn h s2 then subset t s2 else false
+let revlist l =
+    let rec revlist' l r =
+        match l with
+        | [] -> r
+        | h::t -> revlist' t (h::r) in
+    revlist' l []
 
 (* Statement grammar *)
 type const = Int of int | Name of string | Skol of string * string list
@@ -360,3 +366,35 @@ let resolution alpha kb =
             else resolution' (union noo clauses) noo
         ) in
     resolution' ((cnf (Not alpha))::kb) []
+
+let resolveLitProof l c proof =
+    let rec resolveLitProof' lit f cl proof =
+        match cl with
+        | [] -> []
+        | h::t -> (
+            match unifyStmt (cnf (Not lit)) h with
+            | Failure -> resolveLitProof' lit (append h f) t proof
+            | Subst s -> (listToClause (concat f t))::(resolveLitProof' lit (append h f) t) (proof)
+            ) in
+    resolveLitProof' l [] (clauseToList c) proof
+let rec resolveProof c1 c2 proof =
+    match c1 with
+    | Or (s1, s2) -> union (resolveProof s1 c2 proof) (resolveProof s2 c2 proof)
+    | _ -> resolveLitProof c1 c2 proof
+let resolutionProof alpha kb =
+    let getResolventsProof cl proof =
+        let rec getResolventsProof' l proof =
+            match l with
+            | [] -> []
+            | (c1, c2)::t -> union (resolveProof c1 c2 proof) (getResolventsProof' t proof) in
+        getResolventsProof' (cross cl cl) proof in
+    let rec resolutionProof' clauses old proof =
+        let resolvents = getResolventsProof clauses proof in
+        if isIn False resolvents then ("Q.E.D")::proof
+        else (
+            let noo = union old resolvents in
+            if subset noo clauses then ["This statement is not entailed!"]
+            else resolutionProof' (union noo clauses) noo proof
+        ) in
+    let proof = resolutionProof' ((cnf (Not alpha))::kb) [] ["Suppose "^stmtToString(Not alpha)] in
+    revlist proof

@@ -5,8 +5,8 @@ ForAll("x", ForAll("y", ForAll ("z", Implies (And (Equals (Var "x", Var "y"), Eq
 Equals (Var "Ry", Var "Arman");
 Equals (Var "Parker", Var "Arman")
 ] in
-let alpha = Not (Equals (Var "Ry", Var "Parker")) in
-resolution alpha kb
+let alpha = (Equals (Var "Ry", Var "Parker")) in
+resolutionProof alpha kb
 
 let rec printKB kb =
     match kb with
