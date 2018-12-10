@@ -268,12 +268,29 @@ let substUnion s1 s2 =
     | Failure,_ -> Failure
     | _,Failure -> Failure
     | (Subst l1), (Subst l2) -> Subst (union l1 l2)
+let rec getSub v sub =
+    match sub with
+    | Subst [] -> Var "None"
+    | Subst ((e1,e2)::t) -> if v=e1 then e2 else getSub v (Subst t)
+    | _ -> Var "None"
+let rec substitute s sub =
+    let rec subExpr e sub =
+        match e with
+        | Const c -> e
+        | Var v -> let noo = getSub e sub in
+                    if noo = Var "None" then e else noo
+        | Plus (e1, e2) -> Plus ((subExpr e1 sub), (subExpr e2 sub))
+        | Times (e1, e2) -> Times ((subExpr e1 sub), (subExpr e2 sub)) in
+    match s with
+    | ForAll (v, s') -> ForAll (v, substitute s' sub)
+    | Exists (v, s') -> Exists (v, substitute s' sub)
+    | Implies (s1, s2) -> Implies (substitute s1 sub, substitute s2 sub)
+    | And (s1, s2) -> And (substitute s1 sub, substitute s2 sub)
+    | Or (s1, s2) -> Or (substitute s1 sub, substitute s2 sub)
+    | Not s' -> Not (substitute s' sub)
+    | Equals (e1, e2) -> Equals (subExpr e1 sub, subExpr e2 sub)
+    | LessThan (e1, e2) -> LessThan (subExpr e1 sub, subExpr e2 sub)
 let rec unifyVar v x sub =
-    let rec getSub v sub =
-        match sub with
-        | Subst [] -> Var "None"
-        | Subst ((e1,e2)::t) -> if v=e1 then e2 else getSub v (Subst t)
-        | _ -> Var "None" in
     match sub with
     | Failure -> Failure
     | Subst (theta) -> (
@@ -391,12 +408,23 @@ let addExists s =
         match insertAndReplace s (availSkols s bv) with
         | ForAll (v, s') -> ForAll (v, (addExists' s' (v::bv)))
         | Exists (v, s') -> Exists (v, (addExists' s' bv))
-        | And (s1,s2) -> And ((addExists' s1 bv),(addExists' s2 bv))
-        | Or (s1,s2) -> Or ((addExists' s1 bv),(addExists' s2 bv))
+        | Implies (s1, s2) -> Implies ((addExists' s1 bv),(addExists' s2 bv))
+        | And (s1, s2) -> And ((addExists' s1 bv),(addExists' s2 bv))
+        | Or (s1, s2) -> Or ((addExists' s1 bv),(addExists' s2 bv))
         | Not s' -> Not (addExists' s' bv)
         | _ -> s in
     addExists' s []
-let expandCNF s = addExists (addForAlls s)
+let rec addImp s =
+    match s with
+    | Or (Not s1, s2) -> Implies (s1, s2)
+    | ForAll (v, s') -> ForAll (v, addImp s')
+    | Exists (v, s') -> Exists (v, addImp s')
+    | Implies (s1, s2) -> Implies (addImp s1, addImp s2)
+    | And (s1, s2) -> And (addImp s1, addImp s2)
+    | Or (s1, s2) -> Or (addImp s1, addImp s2)
+    | Not s' -> Not (addImp s')
+    | _ -> s
+let expandCNF s sub = addImp (addExists (addForAlls (substitute s sub)))
 
 (* These functions may be out of date since further modifications to
 the algorithms are being done on the 'proof' versions *)
@@ -445,12 +473,12 @@ let resolveLitProof l c proof =
             | Failure -> (resolveLitProof' lit (append h f) t proof)
             | Subst s -> let clause = (listToClause (concat f t)) in
                     let (l, proof') = (resolveLitProof' lit (append h f) t proof) in
-                    (clause::l), (((stmtToString (Not lit)) ^ " and " ^ (stmtToString h) ^ " therefore " ^ (stmtToString clause))::proof')
+                    (clause::l), (((stmtToString (expandCNF lit (Subst s))) ^ " and " ^ (stmtToString (expandCNF (listToClause (concat f cl)) (Subst s))) ^ " therefore " ^ (stmtToString (expandCNF clause (Subst s))))::proof')
             ) in
     resolveLitProof' l [] (clauseToList c) proof
 let rec resolveProof c1 c2 proof =
     match (unifyStmt (cnf (Not c1)) (cnf c2)) with
-    | Subst s -> [False], (((stmtToString (Not c1)) ^ " and " ^ (stmtToString c2) ^ ", which is a contradiction.")::proof)
+    | Subst s -> [False], (((stmtToString (expandCNF c1 (Subst s))) ^ " and " ^ (stmtToString (expandCNF c2 (Subst s))) ^ ", which is a contradiction.")::proof)
     | Failure -> (
         match c1 with
         | Or (s1, s2) -> let (resolve1, proof1) = resolveProof s1 c2 proof in
@@ -475,5 +503,5 @@ let resolutionProof alpha kb =
             if subset noo clauses then ("This statement is not entailed!")::proof'
             else resolutionProof' (union noo clauses) noo proof'
         ) in
-    let proof = resolutionProof' (prepare ((Not alpha)::kb)) [] ["Suppose "^stmtToString(Not alpha)] in
+    let proof = resolutionProof' (prepare ((Not alpha)::kb)) [] ["Suppose "^stmtToString(expandCNF (Not alpha) (Subst []))] in
     revlist proof

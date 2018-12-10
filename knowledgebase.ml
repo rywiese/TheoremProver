@@ -7,5 +7,3 @@ Equals (Const (Name "Arman"), Const (Name "Parker"))
 ] in
 let alpha = (Equals (Const (Name "Ry"), Const (Name "Parker")))  in
 resolutionProof alpha kb
-
-unifyStmt () ()
