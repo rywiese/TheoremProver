@@ -48,6 +48,10 @@ let revlist l =
         | [] -> r
         | h::t -> revlist' t (h::r) in
     revlist' l []
+let rec lenList l =
+    match l with
+    | [] -> 0
+    | h::t -> 1 + (lenList t)
 
 (* Statement grammar *)
 type const = Int of int | Name of string | Skol of string * string list
@@ -492,8 +496,8 @@ let resolutionProof alpha kb =
             match l with
             | [] -> [],proof
             | (c1, c2)::t -> let (resolvents, proof1) = (getResolventsProof' t proof) in
-                        if (isIn False resolvents) then let h::t = proof1 in (resolvents, proof1)
-                        else let (l,proof2) = (resolveProof c1 c2 proof1) in
+                        (* if (isIn False resolvents) then let h::t = proof1 in (resolvents, proof1) else *)
+                        let (l,proof2) = (resolveProof c1 c2 proof1) in
                         ((union l resolvents), proof2) in
         getResolventsProof' (cross cl cl) proof in
     let rec resolutionProof' clauses old proof =
@@ -506,3 +510,53 @@ let resolutionProof alpha kb =
         ) in
     let proof = resolutionProof' (prepare ((Not alpha)::kb)) [] ["Suppose "^stmtToString(expandCNF (Not alpha) (Subst []))] in
     revlist proof
+
+let rec makeConstant s x =
+    let rec makeConstantExpr e x =
+        match e with
+        | Var v -> if v = x then Const (Name v) else e
+        | Plus (e1, e2) -> Plus ((makeConstantExpr e1 x), (makeConstantExpr e2 x))
+        | Times (e1, e2) -> Times ((makeConstantExpr e1 x), (makeConstantExpr e2 x))
+        | _ -> e in
+    match s with
+    | ForAll (v, s') -> ForAll (v, makeConstant s' x)
+    | Exists (v, s') -> Exists (v, makeConstant s' x)
+    | Implies (s1, s2) -> Implies (makeConstant s1 x, makeConstant s2 x)
+    | And (s1, s2) -> And (makeConstant s1 x, makeConstant s2 x)
+    | Or (s1, s2) -> Or (makeConstant s1 x, makeConstant s2 x)
+    | Not s' -> Not (makeConstant s' x)
+    | Equals (e1, e2) -> Equals (makeConstantExpr e1 x, makeConstantExpr e2 x)
+    | LessThan (e1, e2) -> LessThan (makeConstantExpr e1 x, makeConstantExpr e2 x)
+    | _ -> s
+let rec makeSkol s x bv =
+    let rec makeSkolExpr e x bv =
+        match e with
+        | Var v -> if v = x then Const (Skol (v,bv)) else e
+        | Plus (e1, e2) -> Plus ((makeSkolExpr e1 x bv), (makeSkolExpr e2 x bv))
+        | Times (e1, e2) -> Times ((makeSkolExpr e1 x bv), (makeSkolExpr e2 x bv))
+        | _ -> e in
+    match s with
+    | ForAll (v, s') -> ForAll (v, makeSkol s' x bv)
+    | Exists (v, s') -> Exists (v, makeSkol s' x bv)
+    | Implies (s1, s2) -> Implies (makeSkol s1 x bv, makeSkol s2 x bv)
+    | And (s1, s2) -> And (makeSkol s1 x bv, makeSkol s2 x bv)
+    | Or (s1, s2) -> Or (makeSkol s1 x bv, makeSkol s2 x bv)
+    | Not s' -> Not (makeSkol s' x bv)
+    | Equals (e1, e2) -> Equals (makeSkolExpr e1 x bv, makeSkolExpr e2 x bv)
+    | LessThan (e1, e2) -> LessThan (makeSkolExpr e1 x bv, makeSkolExpr e2 x bv)
+    | _ -> s
+let parse s kb =
+    let rec prove' s kb bv proof =
+        match s with
+        | True -> []
+        | False -> ["Contradiction"]
+        | ForAll (x, s') -> prove' (makeConstant s' x) kb (x::bv) (("Given " ^ x)::proof)
+        (* | Exists (x, s') -> prove' (makeSkol s' x bv) kb bv (("Let " ^ x ^ " = " ^ (exprToString (Const (Skol (x,bv)))))::proof) *)
+        | Implies (s1, s2) -> prove' s2 (s1::kb) bv (("Assume " ^ (stmtToString s1))::proof)
+        | And (s1, s2) -> let (p1,p2) = (prove' s1 kb bv [], prove' s2 kb bv []) in
+                concat (("Proof of " ^ (stmtToString s1))::p1) (("Proof of " ^ (stmtToString s2))::p2)
+        | Not (ForAll (x, s')) -> prove' (Exists (x, Not s')) kb bv proof
+        | Not (Exists (x, s')) -> prove' (ForAll (x, Not s')) kb bv proof
+        | Not (Implies (s1, s2)) -> prove' (Not (And (s1, Not s2))) kb bv proof
+        | _ -> concat (revlist (resolutionProof s kb)) proof
+    in revlist (prove' s kb [] [])
