@@ -370,7 +370,7 @@ let cnfToList c =
         | _ -> c::l in
     cnfToList' c []
 
-(*
+
 let addForAlls s =
     let rec addForAlls' s vl =
         match vl with
@@ -432,7 +432,15 @@ let rec addImp s =
     | Or (s1, s2) -> Or (addImp s1, addImp s2)
     | Not s' -> Not (addImp s')
     | _ -> s
-let expandCNF s sub = addImp (addExists (addForAlls (substitute s sub))) *)
+let expandCNF s sub = addImp (addExists (addForAlls (substitute s sub)))
+
+let addToProof s proof =
+    match proof with
+    | [] -> [s]
+    | h::t -> if h = "Contradiction." then proof else s::proof
+
+let concatProofs p1 p2 =
+    if isIn "Contradiction." p2 then p2 else concat p1 p2
 
 type clause = Empty | Lits of stmt list
 let stmtToClause s =
@@ -463,13 +471,16 @@ let rec resolveLit' lit front back proof =
         let ((Lits fList), (Lits bList)) = (front, back) in
         let oldClause = Lits (concat fList bList) in
         let (rest, proof1) = resolveLit' lit (Lits (append h fList)) (Lits t) proof in
-        match unifyStmt (Not lit) h with
+        match unifyStmt (cnf (Not lit)) (cnf h) with
         | Failure -> (rest, proof1)
         | Subst s ->
             let newClause = Lits (concat fList t) in
-            if newClause = Lits [] then ((Empty::rest), ((stmtToString lit) ^ " and " ^ (stmtToString (clauseToStmt oldClause)) ^ ", which is a contradiction")::proof1)
+            if newClause = Lits [] then
+                let sent = ((stmtToString (expandCNF lit (Subst s))) ^ " and " ^ (stmtToString (expandCNF (clauseToStmt oldClause) (Subst s)))) in
+                ((Empty::rest), (addToProof "Contradiction." (addToProof sent proof1)))
             else
-            ((newClause::rest), ((stmtToString lit) ^ " and " ^ (stmtToString (clauseToStmt oldClause)) ^ " therefore " ^ (stmtToString (clauseToStmt newClause)))::proof1)
+            let sent = ((stmtToString (expandCNF lit (Subst s))) ^ " and " ^ (stmtToString (expandCNF (clauseToStmt oldClause) (Subst s))) ^ " therefore " ^ (stmtToString (expandCNF (clauseToStmt newClause) (Subst s)))) in
+            ((newClause::rest), (addToProof sent proof1))
         )
 let resolveLit lit clause proof = resolveLit' lit (Lits []) clause proof
 let rec resolveClauses c1 c2 proof =
@@ -486,7 +497,7 @@ let rec resolve pair proof =
     | (c1, c2)::t ->
         let (resolvents, proof1) = resolve t proof in
         let (rest, proof2) = resolveClauses c1 c2 proof in
-        ((union resolvents rest), concat (proof1) (proof2))
+        ((union resolvents rest), concatProofs (proof1) (proof2))
 let rec resolutionLoop clauseList old proof =
         match clauseList with
         | [] -> proof
@@ -505,11 +516,10 @@ let resolution alpha kb =
                 | h::t -> (stmtToClause h)::(clausify t)
             in clausify kb
         in resolutionLoop clauses [] proof
-    in revlist (resolution' (prepare (append (Not alpha) kb)) [])
+    in (resolution' (prepare (append (Not alpha) kb)) [])
 
 
-(*
-let resolveLitProof l c proof =
+(* let resolveLitProof l c proof =
     let rec resolveLitProof' lit f cl proof =
         match cl with
         | [] -> [],proof
@@ -550,7 +560,7 @@ let resolutionProof alpha kb =
             else resolutionProof' (union noo clauses) noo proof'
         ) in
     let proof = resolutionProof' (prepare ((Not alpha)::kb)) [] ["Suppose "^stmtToString(expandCNF (Not alpha) (Subst []))] in
-    revlist proof
+    revlist proof *)
 
 let rec makeConstant s x =
     let rec makeConstantExpr e x =
@@ -586,7 +596,7 @@ let rec makeSkol s x bv =
     | Equals (e1, e2) -> Equals (makeSkolExpr e1 x bv, makeSkolExpr e2 x bv)
     | LessThan (e1, e2) -> LessThan (makeSkolExpr e1 x bv, makeSkolExpr e2 x bv)
     | _ -> s
-let parse s kb =
+let prove s kb =
     let rec prove' s kb bv proof =
         match s with
         | True -> []
@@ -599,5 +609,5 @@ let parse s kb =
         | Not (ForAll (x, s')) -> prove' (Exists (x, Not s')) kb bv proof
         | Not (Exists (x, s')) -> prove' (ForAll (x, Not s')) kb bv proof
         | Not (Implies (s1, s2)) -> prove' (Not (And (s1, Not s2))) kb bv proof
-        | _ -> concat (revlist (resolutionProof s kb)) proof
-    in revlist (prove' s kb [] []) *)
+        | _ -> concat ((resolution s kb)) proof
+    in revlist (prove' s kb [] [])
