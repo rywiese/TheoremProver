@@ -280,11 +280,11 @@ let rec getSub v sub =
 let rec substitute s sub =
     let rec subExpr e sub =
         match e with
-        | Const c -> e
         | Var v -> let noo = getSub e sub in
                     if noo = Var "None" then e else noo
         | Plus (e1, e2) -> Plus ((subExpr e1 sub), (subExpr e2 sub))
-        | Times (e1, e2) -> Times ((subExpr e1 sub), (subExpr e2 sub)) in
+        | Times (e1, e2) -> Times ((subExpr e1 sub), (subExpr e2 sub))
+        | _ -> e in
     match s with
     | ForAll (v, s') -> ForAll (v, substitute s' sub)
     | Exists (v, s') -> Exists (v, substitute s' sub)
@@ -294,6 +294,7 @@ let rec substitute s sub =
     | Not s' -> Not (substitute s' sub)
     | Equals (e1, e2) -> Equals (subExpr e1 sub, subExpr e2 sub)
     | LessThan (e1, e2) -> LessThan (subExpr e1 sub, subExpr e2 sub)
+    | _ -> s
 let rec unifyVar v x sub =
     match sub with
     | Failure -> Failure
@@ -304,9 +305,11 @@ let rec unifyVar v x sub =
             let valu = (getSub x sub) in
             if valu <> (Var "None") then unify' v valu sub
             else (
-                let Var v' = v in
-                if isIn v' (fvExpr x) then Failure
-                else Subst ((v,x)::theta)
+                match v with
+                | Var v' ->
+                    if isIn v' (fvExpr x) then Failure
+                    else Subst ((v,x)::theta)
+                | _ -> Failure
             )
         )
     )
@@ -367,6 +370,7 @@ let cnfToList c =
         | _ -> c::l in
     cnfToList' c []
 
+(*
 let addForAlls s =
     let rec addForAlls' s vl =
         match vl with
@@ -428,46 +432,83 @@ let rec addImp s =
     | Or (s1, s2) -> Or (addImp s1, addImp s2)
     | Not s' -> Not (addImp s')
     | _ -> s
-let expandCNF s sub = addImp (addExists (addForAlls (substitute s sub)))
+let expandCNF s sub = addImp (addExists (addForAlls (substitute s sub))) *)
 
-(* These functions may be out of date since further modifications to
-the algorithms are being done on the 'proof' versions *)
-let resolveLit l c =
-    let rec resolveLit' lit f cl =
-        match cl with
-        | [] -> []
-        | h::t -> (
-            match unifyStmt (cnf (Not lit)) h with
-            | Failure -> (resolveLit' lit (append h f) t)
-            | Subst s -> (listToClause (concat f t))::(resolveLit' lit (append h f) t)
-            ) in
-    resolveLit' l [] (clauseToList c)
-let rec resolve c1 c2 =
-    match (unifyStmt (cnf (Not c1)) (cnf c2)) with
-    | Subst s -> [False]
-    | Failure -> (
+type clause = Empty | Lits of stmt list
+let stmtToClause s =
+    let rec stmtToList s =
+        match s with
+        | True -> [s]
+        | False -> []
+        | Or (s1, s2) -> union (stmtToList s1) (stmtToList s2)
+        | Not s' -> [s]
+        | Equals (e1, e2) -> [s]
+        | LessThan (e1, e2) -> [s]
+    in match stmtToList s with
+    | [] -> Empty
+    | h::t -> Lits (h::t)
+let rec clauseToStmt c =
+    match c with
+    | Empty -> False
+    | Lits [] ->
+        Equals ((Const (Name "Error in clauseToStmt")), (Const (Name "Error in clauseToStmt")))
+    | Lits (s::[]) -> s
+    | Lits (s::t) -> Or (s, (clauseToStmt (Lits t)))
+
+let rec resolveLit' lit front back proof =
+    match back with
+    | Empty -> [Empty], proof
+    | Lits [] -> ([front], proof)
+    | Lits (h::t) -> (
+        let ((Lits fList), (Lits bList)) = (front, back) in
+        let oldClause = Lits (concat fList bList) in
+        let (rest, proof1) = resolveLit' lit (Lits (append h fList)) (Lits t) proof in
+        match unifyStmt (Not lit) h with
+        | Failure -> (rest, proof1)
+        | Subst s ->
+            let newClause = Lits (concat fList t) in
+            if newClause = Lits [] then ((Empty::rest), ((stmtToString lit) ^ " and " ^ (stmtToString (clauseToStmt oldClause)) ^ ", which is a contradiction")::proof1)
+            else
+            ((newClause::rest), ((stmtToString lit) ^ " and " ^ (stmtToString (clauseToStmt oldClause)) ^ " therefore " ^ (stmtToString (clauseToStmt newClause)))::proof1)
+        )
+let resolveLit lit clause proof = resolveLit' lit (Lits []) clause proof
+let rec resolveClauses c1 c2 proof =
         match c1 with
-        | Or (s1, s2) -> union (resolve s1 c2) (resolve s2 c2)
-        | _ -> resolveLit c1 c2
-    )
+        | Empty -> ([], proof)
+        | Lits [] -> ([], proof)
+        | Lits (h::t) -> (
+            let (resolvents, proof1) = resolveLit h c2 proof in
+            let (rest, proof2) = resolveClauses (Lits t) c2 proof1 in
+            ((union resolvents rest), proof2))
+let rec resolve pair proof =
+    match pair with
+    | [] -> ([], proof)
+    | (c1, c2)::t ->
+        let (resolvents, proof1) = resolve t proof in
+        let (rest, proof2) = resolveClauses c1 c2 proof in
+        ((union resolvents rest), concat (proof1) (proof2))
+let rec resolutionLoop clauseList old proof =
+        match clauseList with
+        | [] -> proof
+        | _ -> (
+            let (resolvents, proof') = resolve (cross clauseList clauseList) proof in
+            if isIn Empty resolvents then ("Q.E.D")::proof'
+            else (let noo = union old resolvents in
+            if subset noo clauseList then ("The statement is not entailed")::proof'
+            else resolutionLoop clauseList noo proof'))
 let resolution alpha kb =
-    let getResolvents cl =
-        let rec getResolvents' l =
-            match l with
-            | [] -> []
-            | (c1, c2)::t -> union (resolve c1 c2) (getResolvents' t) in
-        getResolvents' (cross cl cl) in
-    let rec resolution' clauses old =
-        let resolvents = getResolvents clauses in
-        if isIn False resolvents then true
-        else (
-            let noo = union old resolvents in
-            if subset noo clauses then false
-            else resolution' (union noo clauses) noo
-        ) in
-    resolution' (prepare ((Not alpha)::kb)) []
-(* *** *)
+    let resolution' kb proof =
+        let clauses =
+            let rec clausify kb =
+                match kb with
+                | [] -> []
+                | h::t -> (stmtToClause h)::(clausify t)
+            in clausify kb
+        in resolutionLoop clauses [] proof
+    in revlist (resolution' (prepare (append (Not alpha) kb)) [])
 
+
+(*
 let resolveLitProof l c proof =
     let rec resolveLitProof' lit f cl proof =
         match cl with
@@ -559,4 +600,4 @@ let parse s kb =
         | Not (Exists (x, s')) -> prove' (ForAll (x, Not s')) kb bv proof
         | Not (Implies (s1, s2)) -> prove' (Not (And (s1, Not s2))) kb bv proof
         | _ -> concat (revlist (resolutionProof s kb)) proof
-    in revlist (prove' s kb [] [])
+    in revlist (prove' s kb [] []) *)
