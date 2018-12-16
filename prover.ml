@@ -293,16 +293,25 @@ let rec distributeOr s =
 let cnf s = distributeOr (dropQuantifiers (skolemize (standardize (distributeOr (pushNot (elimImp s))))))
 
 (* Unification *)
-let substUnion s1 s2 =
-    match (s1, s2) with
-    | Failure,_ -> Failure
-    | _,Failure -> Failure
-    | (Subst l1), (Subst l2) -> Subst (union l1 l2)
 let rec getSub v sub =
     match sub with
     | Subst [] -> Var "None"
     | Subst ((e1,e2)::t) -> if v=e1 then e2 else getSub v (Subst t)
     | _ -> Var "None"
+let rec combinableSubs l1 l2 =
+    let rec comb s l =
+        match l with
+        | [] -> true
+        | (v2,e2)::t -> let v1,e1 = s in if (v1 = v2) && (e1 <> e2) then false else comb s t in
+    match l1 with
+    | [] -> true
+    | h::t -> if comb h l2 then combinableSubs t l2 else false
+let substUnion s1 s2 =
+    match (s1, s2) with
+    | Failure,_ -> Failure
+    | _,Failure -> Failure
+    | (Subst l1), (Subst l2) ->
+        if combinableSubs l1 l2 then Subst (union l1 l2) else Failure
 let rec substitute s sub =
     let rec subExpr e sub =
         match e with
@@ -607,7 +616,7 @@ let prove s kb =
         | True -> []
         | False -> ["Contradiction"]
         | ForAll (x, s') -> prove' (makeConstant s' x) kb (x::bv) (("Given " ^ x)::proof)
-        (* | Exists (x, s') -> prove' (makeSkol s' x bv) kb bv (("Let " ^ x ^ " = " ^ (exprToString (Const (Skol (x,bv)))))::proof) *)
+        | Exists (x, s') -> prove' (makeSkol s' x bv) kb bv (("Let " ^ x ^ " = " ^ (exprToString (Const (Skol (x,bv)))))::proof)
         | Implies (s1, s2) -> prove' s2 (s1::kb) bv (("Assume " ^ (stmtToString s1))::proof)
         | And (s1, s2) -> let (p1,p2) = (prove' s1 kb bv [], prove' s2 kb bv []) in
                 concat (("Proof of " ^ (stmtToString s1))::p1) (("Proof of " ^ (stmtToString s2))::p2)
