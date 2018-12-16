@@ -473,7 +473,6 @@ let addToProof s proof =
     match proof with
     | [] -> [s]
     | h::t -> if h = "Contradiction." then proof else s::proof
-
 let concatProofs p1 p2 =
     if isIn "Contradiction." p2 then p2 else union p1 p2
 
