@@ -460,13 +460,13 @@ let rec addImp s =
     | _ -> s
 let expandCNF s sub = addImp (addExists (addForAlls (substitute s sub)))
 
-let addToProof s proof =
-    match proof with
+let addToProof s proof = s::proof
+    (* match proof with
     | [] -> [s]
-    | h::t -> if h = "Contradiction." then proof else s::proof
+    | h::t -> if h = "Contradiction." then proof else s::proof *)
 
-let concatProofs p1 p2 =
-    if isIn "Contradiction." p2 then p2 else union p1 p2
+let concatProofs p1 p2 = union p1 p2
+    (* if isIn "Contradiction." p2 then p2 else union p1 p2 *)
 
 type clause = Empty | Lits of stmt list
 let stmtToClause s =
@@ -553,7 +553,7 @@ let rec getPosLits c =
 let rec getNegLits c =
     match c with
     | Or (c1, c2) -> union (getNegLits c1) (getNegLits c2)
-    | Not c' -> [c]
+    | Not c' -> [c']
     | _ -> []
 let hornify c =
     let rec negToAnd n =
