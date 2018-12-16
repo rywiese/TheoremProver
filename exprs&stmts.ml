@@ -17,14 +17,14 @@ let s = Not (ForAll ("x", Equals (Var "x", Var "y"))) in stmtToString (cnf s)
 (*      For all epsilon, there exists K st for all j, [K<j] => [a_j < epsilon]      *)
 let s = ForAll ("epsilon", Exists ("K", ForAll ("j", Implies (LessThan (Var "K", Var "j"), LessThan (Var "a_j", Var "epsilon"))))) in stmtToString (cnf s)
 
-let s1 = Plus(Var "x", Const (Int 7)) in let s2 = Plus(Const (Int 3), Var "y") in unify s1 s2 (Subst [])
+let s1 = Plus(Var "x", Const (Int 7)) in let s2 = Plus(Const (Int 3), Var "y") in unify' s1 s2 (Subst [])
 
 let s1 = (ForAll ("x", Equals (Plus(Var "x", Const (Int 7)),Plus(Var "x", Const (Int 7))))) in
 let s2 = Not (ForAll ("y", Equals (Plus(Const (Int 3), Var "y"),Plus(Const (Int 3), Var "y")))) in
 resolve (cnf s2) (cnf s1)
 
 let s1 = Or (ForAll ("x", Equals (Plus(Var "x", Const (Int 7)),Plus(Var "x", Const (Int 7)))), Equals ((Const (Int 2)), Var "Ry")) in
-let s2 = Not (ForAll ("y", Equals (Plus(Const (Int 3), Var "y"),Plus(Const (Int 3), Var "y")))) in
+let s2 = Not (ForAll ("y", Equals (Plus(Const (Int 3), Var "y"),Plus(Const (Int 3), Var "y")))) in unifyStmt (cnf s1) (cnf s2)
 resolve (cnf s2) (cnf s1)
 unifyStmt (cnf(Not(Not(ForAll ("y", Equals (Plus(Const (Int 3), Var "y"),Plus(Const (Int 3), Var "y"))))))) (cnf(ForAll ("x", Equals (Plus(Var "x", Const (Int 7)),Plus(Var "x", Const (Int 7))))))
 unifyStmt (Not (cnf s2)) (Equals (Plus (Var "x", Const (Int 7)), Plus (Var "x", Const (Int 7))))

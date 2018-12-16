@@ -92,6 +92,23 @@ let rec fvStmt s =
     | Equals (e1, e2) -> union (fvExpr e1) (fvExpr e2)
     | LessThan (e1, e2) -> union (fvExpr e1) (fvExpr e2)
     | _ -> []
+let rec constsInExpr e =
+    match e with
+    | Const (Name n) -> [n]
+    | Plus (e1, e2) -> union (fvExpr e1) (fvExpr e2)
+    | Times (e1, e2) -> union (fvExpr e1) (fvExpr e2)
+    | _ -> []
+let rec constsIn s =
+    match s with
+    | ForAll (v, s') -> constsIn s'
+    | Exists (v, s') -> constsIn s'
+    | Implies (s1, s2) -> union (constsIn s1) (constsIn s2)
+    | And (s1, s2) -> union (constsIn s1) (constsIn s2)
+    | Or (s1, s2) -> union (constsIn s1) (constsIn s2)
+    | Not s' -> constsIn s'
+    | Equals (e1, e2) -> union (constsInExpr e1) (constsInExpr e2)
+    | LessThan (e1, e2) -> union (constsInExpr e1) (constsInExpr e2)
+    | _ -> []
 let rec bvStmt s =
     match s with
     | ForAll (v, s') -> union [v] (bvStmt s')
@@ -112,6 +129,7 @@ let rec vars s =
     | Equals (e1, e2) -> union (fvExpr e1) (fvExpr e2)
     | LessThan (e1, e2) -> union (fvExpr e1) (fvExpr e2)
     | _ -> []
+let bvc s = union (bvStmt s) (constsIn s)
 
 (* Converting to strings for printing *)
 let rec listToString l =
@@ -139,6 +157,14 @@ let rec stmtToString s =
     | Implies (s1, s2) -> "(" ^ (stmtToString s1) ^ ") => (" ^ (stmtToString s2) ^ ")"
     | Exists (v, s) -> "There exists " ^ v ^ " such that (" ^ (stmtToString s) ^ ")"
     | ForAll (v, s) -> "For all " ^ v ^ ", (" ^ (stmtToString s) ^ ")"
+let substToString s =
+    let rec exprListToString l =
+        match l with
+        | [] -> ""
+        | (e1,e2)::t -> (exprToString e1) ^ "/" ^ (exprToString e2) ^ (", ") ^ (exprListToString t) in
+    match s with
+    | Failure -> "None"
+    | Subst l -> exprListToString l
 
 (* Converting a statement into CNF *)
 let rec elimImp s =
@@ -205,13 +231,13 @@ let standardize s =
                                 Exists (v', standardize' (replace s' v v') (union b [v']) t)
                             else Exists (v, standardize' s' b d)
         | Implies (s1, s2) -> let s1' = standardize' s1 b d in
-                                let b' = union b (bvStmt s1') in
+                                let b' = union b (bvc s1') in
                                 Implies (s1', standardize' s2 b' (difference d b'))
         | And (s1, s2) -> let s1' = standardize' s1 b d in
-                                let b' = union b (bvStmt s1') in
+                                let b' = union b (bvc s1') in
                                 And (s1', standardize' s2 b' (difference d b'))
         | Or (s1, s2) -> let s1' = standardize' s1 b d in
-                                let b' = union b (bvStmt s1') in
+                                let b' = union b (bvc s1') in
                                 Or (s1', standardize' s2 b' (difference d b'))
         | Not s' -> Not (standardize' s' b d)
         | _ -> s
@@ -440,7 +466,7 @@ let addToProof s proof =
     | h::t -> if h = "Contradiction." then proof else s::proof
 
 let concatProofs p1 p2 =
-    if isIn "Contradiction." p2 then p2 else concat p1 p2
+    if isIn "Contradiction." p2 then p2 else union p1 p2
 
 type clause = Empty | Lits of stmt list
 let stmtToClause s =
@@ -476,7 +502,7 @@ let rec resolveLit' lit front back proof =
         | Subst s ->
             let newClause = Lits (concat fList t) in
             if newClause = Lits [] then
-                let sent = ((stmtToString (expandCNF lit (Subst s))) ^ " and " ^ (stmtToString (expandCNF (clauseToStmt oldClause) (Subst s)))) in
+                let sent = ("Using " ^ (substToString (Subst s)) ^ ", " ^ (stmtToString (expandCNF lit (Subst s))) ^ " and " ^ (stmtToString (expandCNF (clauseToStmt oldClause) (Subst s)))) in
                 ((Empty::rest), (addToProof "Contradiction." (addToProof sent proof1)))
             else
             let sent = ((stmtToString (expandCNF lit (Subst s))) ^ " and " ^ (stmtToString (expandCNF (clauseToStmt oldClause) (Subst s))) ^ " therefore " ^ (stmtToString (expandCNF (clauseToStmt newClause) (Subst s)))) in
@@ -516,51 +542,30 @@ let resolution alpha kb =
                 | h::t -> (stmtToClause h)::(clausify t)
             in clausify kb
         in resolutionLoop clauses [] proof
-    in (resolution' (prepare (append (Not alpha) kb)) [])
+    in (resolution' (prepare ((Not alpha)::kb)) ["Suppose " ^ (stmtToString(Not alpha))])
 
-
-(* let resolveLitProof l c proof =
-    let rec resolveLitProof' lit f cl proof =
-        match cl with
-        | [] -> [],proof
-        | h::t -> (
-            match unifyStmt (cnf (Not lit)) h with
-            | Failure -> (resolveLitProof' lit (append h f) t proof)
-            | Subst s -> let clause = (listToClause (concat f t)) in
-                    let (l, proof') = (resolveLitProof' lit (append h f) t proof) in
-                    (clause::l), (((stmtToString (expandCNF lit (Subst s))) ^ " and " ^ (stmtToString (expandCNF (listToClause (concat f cl)) (Subst s))) ^ " therefore " ^ (stmtToString (expandCNF clause (Subst s))))::proof')
-            ) in
-    resolveLitProof' l [] (clauseToList c) proof
-let rec resolveProof c1 c2 proof =
-    match (unifyStmt (cnf (Not c1)) (cnf c2)) with
-    | Subst s -> [False], (((stmtToString (expandCNF c1 (Subst s))) ^ " and " ^ (stmtToString (expandCNF c2 (Subst s))) ^ ", which is a contradiction.")::proof)
-    | Failure -> (
-        match c1 with
-        | Or (s1, s2) -> let (resolve1, proof1) = resolveProof s1 c2 proof in
-                let (resolve2, proof2) = resolveProof s2 c2 proof in
-                ((union resolve1 resolve2), proof2)
-        | _ -> (resolveLitProof c1 c2 proof)
-    )
-let resolutionProof alpha kb =
-    let getResolventsProof cl proof =
-        let rec getResolventsProof' l proof =
-            match l with
-            | [] -> [],proof
-            | (c1, c2)::t -> let (resolvents, proof1) = (getResolventsProof' t proof) in
-                        (* if (isIn False resolvents) then let h::t = proof1 in (resolvents, proof1) else *)
-                        let (l,proof2) = (resolveProof c1 c2 proof1) in
-                        ((union l resolvents), proof2) in
-        getResolventsProof' (cross cl cl) proof in
-    let rec resolutionProof' clauses old proof =
-        let (resolvents, proof') = getResolventsProof clauses proof in
-        if isIn False resolvents then ("Q.E.D")::proof'
-        else (
-            let noo = union old resolvents in
-            if subset noo clauses then ("This statement is not entailed!")::proof'
-            else resolutionProof' (union noo clauses) noo proof'
-        ) in
-    let proof = resolutionProof' (prepare ((Not alpha)::kb)) [] ["Suppose "^stmtToString(expandCNF (Not alpha) (Subst []))] in
-    revlist proof *)
+(* c is assumed to be a clause in cnf form *)
+let rec getPosLits c =
+    match c with
+    | Or (c1, c2) -> union (getPosLits c1) (getPosLits c2)
+    | Not c' -> []
+    | _ -> [c]
+let rec getNegLits c =
+    match c with
+    | Or (c1, c2) -> union (getNegLits c1) (getNegLits c2)
+    | Not c' -> [c]
+    | _ -> []
+let hornify c =
+    let rec negToAnd n =
+        match n with
+        | h::[] -> h
+        | h::t -> And (h, negToAnd t) in
+    let (neg, pos) = (getNegLits c, getPosLits c) in
+    match (neg, pos) with
+    | _,[] -> negToAnd neg
+    | [],(p::[]) -> p
+    | (h::t),(p::[]) -> Implies ((negToAnd neg), p)
+    | _,_ -> False
 
 let rec makeConstant s x =
     let rec makeConstantExpr e x =
