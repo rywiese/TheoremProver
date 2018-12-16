@@ -147,16 +147,16 @@ let rec exprToString e =
     | Times (e1,e2) -> (exprToString e1) ^ " * " ^ (exprToString e2)
 let rec stmtToString s =
     match s with
-    | True -> "True"
-    | False -> "False"
+    | True -> "true"
+    | False -> "false"
     | Equals (e1, e2) -> "(" ^ (exprToString e1) ^ ") = (" ^ (exprToString e2) ^ ")"
     | LessThan (e1, e2) -> "(" ^ (exprToString e1) ^ ") < (" ^ (exprToString e2) ^ ")"
     | Not e -> "~(" ^ (stmtToString e) ^ ")"
     | And (s1, s2) -> "(" ^ (stmtToString s1) ^ ") & (" ^ (stmtToString s2) ^ ")"
     | Or (s1, s2) -> "(" ^ (stmtToString s1) ^ ") or (" ^ (stmtToString s2) ^ ")"
     | Implies (s1, s2) -> "(" ^ (stmtToString s1) ^ ") => (" ^ (stmtToString s2) ^ ")"
-    | Exists (v, s) -> "There exists " ^ v ^ " such that (" ^ (stmtToString s) ^ ")"
-    | ForAll (v, s) -> "For all " ^ v ^ ", (" ^ (stmtToString s) ^ ")"
+    | Exists (v, s) -> "there exists " ^ v ^ " such that (" ^ (stmtToString s) ^ ")"
+    | ForAll (v, s) -> "for all " ^ v ^ ", (" ^ (stmtToString s) ^ ")"
 let substToString s =
     let rec exprListToString l =
         match l with
@@ -469,13 +469,13 @@ let rec addImp s =
     | _ -> s
 let expandCNF s sub = addImp (addExists (addForAlls (substitute s sub)))
 
-let addToProof s proof = s::proof
-    (* match proof with
+let addToProof s proof =
+    match proof with
     | [] -> [s]
-    | h::t -> if h = "Contradiction." then proof else s::proof *)
+    | h::t -> if h = "Contradiction." then proof else s::proof
 
-let concatProofs p1 p2 = union p1 p2
-    (* if isIn "Contradiction." p2 then p2 else union p1 p2 *)
+let concatProofs p1 p2 =
+    if isIn "Contradiction." p2 then p2 else union p1 p2
 
 type clause = Empty | Lits of stmt list
 let stmtToClause s =
@@ -530,9 +530,9 @@ let rec resolve pair proof =
     match pair with
     | [] -> ([], proof)
     | (c1, c2)::t ->
-        let (resolvents, proof1) = resolve t proof in
-        let (rest, proof2) = resolveClauses c1 c2 proof in
-        ((union resolvents rest), concatProofs (proof1) (proof2))
+        let (resolvents, proof1) = resolve t [] in
+        let (rest, proof2) = resolveClauses c1 c2 [] in
+        ((union resolvents rest), concatProofs (concatProofs (proof1) (proof2)) proof)
 let rec resolutionLoop clauseList old proof =
         match clauseList with
         | [] -> proof
