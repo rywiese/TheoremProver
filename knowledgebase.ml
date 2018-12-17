@@ -27,6 +27,5 @@ ForAll ("x", Exists ("y", LessThan (Times (Var "x", Var "x"),Var "y")));
 ForAll ("x", LessThan (Times (Var "x", Var "x"), Times (Times (Var "x",Var "x"),Var "x")));
 LessThan (Times (Const (Name "Arman"), (Const (Name "Arman"))), Times (Const (Name "Ry"), (Const (Name "Ry"))));
 LessThan (Times (Const (Name "Arman"), (Const (Name "Parker"))), Times (Const (Name "Ry"), (Const (Name "Parker"))));
-
 ] in
 batchProve alphas kb
