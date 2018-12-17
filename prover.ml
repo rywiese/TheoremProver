@@ -622,7 +622,7 @@ let rec forEachTheta q subs kb old proof =
     | s::t ->
         let q' = substitute q s in
         if unifiesWithAny q' (prepare (union kb old)) then forEachTheta q t kb old proof
-        else forEachTheta q t kb (q'::old) [stmtToString q']::proof
+        else forEachTheta q t kb (q'::old) ((stmtToString q')::proof)
 let rec forwardChainLoop alpha rest kb old proof =
     match rest with
     | [] -> old,proof
@@ -630,7 +630,7 @@ let rec forwardChainLoop alpha rest kb old proof =
         match rule with
         | Implies (p, q) ->
             let subs = getSubsFC p kb in
-            let noo,proof' = forEachTheta q subs kb old in
+            let noo,proof' = forEachTheta q subs kb old proof in
             forwardChainLoop alpha rest' kb noo proof'
         | _ -> forwardChainLoop alpha rest' kb old proof
         )
