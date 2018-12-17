@@ -12,8 +12,3 @@ Exists ("x", Equals (Var "x", Const (Name "Arman")));
 (ForAll ("x", (Implies ((Equals(Const (Name "Parker"), Var "x"), (Equals((Var "x"),(Const (Name "Ry")))))))));
 ] in
 batchProve alphas kb
-
-let alpha1 = Equals((Const (Name "Parker")),(Const (Name "Arman"))) in
-let alpha = Exists ("x", Equals (Var "x", Const (Name "Arman"))) in
-let alpha2 = (ForAll ("x", (Implies ((Equals(Const (Name "Parker"), Var "x"), (Equals((Var "x"),(Const (Name "Ry"))))))))) in
-proveFC alpha2 kb
