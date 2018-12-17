@@ -52,6 +52,21 @@ let rec lenList l =
     match l with
     | [] -> 0
     | h::t -> 1 + (lenList t)
+let rec crossList l1 l2 =
+    let rec crossList' e l =
+        match l with
+        | [] -> []
+        | h::t -> (append e h)::(crossList' e t) in
+    match l1 with
+    | [] -> []
+    | h::t -> union (crossList' h l2) (crossList t l2)
+let rec setToTheNth l n =
+    let rec listToListList l =
+        match l with
+        | [] -> []
+        | h::t -> [h]::(listToListList t) in
+    if n <= 1 then listToListList l
+    else crossList l (setToTheNth l (n-1))
 
 (* Statement grammar *)
 type const = Int of int | Name of string | Skol of string * string list
@@ -574,6 +589,65 @@ let hornify c =
     | [],(p::[]) -> p
     | (h::t),(p::[]) -> Implies ((negToAnd neg), p)
     | _,_ -> False
+let rec hornifyKB kb =
+    match kb with
+    | [] -> []
+    | (h::t) -> (hornify h)::(hornifyKB t)
+let prepareFC kb = hornifyKB (prepare kb)
+
+let rec numLits s =
+    match s with
+    | And (s1, s2) -> (numLits s1) + (numLits s2)
+    | _ -> 1
+let rec unifiesWithAny s l =
+    match l with
+    | [] -> false
+    | (h::t) -> if unifyStmt s h <> Failure then true else unifiesWithAny s t
+let getSubsFC p kb =
+    let rec getSubsFC' p rules =
+        match rules with
+        | [] -> []
+        | rule::rest -> union [(unifyStmt p (andifyKB rule))] (getSubsFC' p rest) in
+    getSubsFC' p (setToTheNth kb (numLits p))
+let rec forEachTheta q subs kb old =
+    match subs with
+    | [] -> old
+    | Failure::t -> forEachTheta q t kb old
+    | s::t ->
+        let q' = substitute q s in
+        if unifiesWithAny q' (union kb old) then forEachTheta q t kb old
+        else forEachTheta q t kb (q'::old)
+let rec forwardChainLoop alpha rest kb old =
+    match rest with
+    | [] -> old
+    | rule::rest' -> (
+        match rule with
+        | Implies (p, q) ->
+            let subs = getSubsFC p kb in forwardChainLoop alpha rest' kb (forEachTheta q subs kb old)
+        | _ -> forwardChainLoop alpha rest' kb old
+        )
+(* let rec forwardChainLoop alpha crossKB kb old =
+    match crossKB with
+    | [] -> old
+    | (rule, rule')::rest -> (
+        match rule with
+        | Implies (p, q) ->
+            let sub = unifyStmt p rule' in
+            if sub <> Failure then (
+                let q' = substitute q sub in
+                if (unifiesWithAny q' (union kb old)) then forwardChainLoop alpha rest kb old
+                else forwardChainLoop alpha rest kb (q'::old)
+            )
+            else forwardChainLoop alpha rest kb old
+        | _ -> forwardChainLoop alpha rest kb old
+        ) *)
+let rec forwardChain' alpha kb =
+    let noo = forwardChainLoop alpha kb kb [] in
+    if unifiesWithAny alpha (union noo kb) then true else
+    match noo with
+    | [] -> false
+    | (h::t) -> forwardChain' alpha (union noo kb)
+let forwardChain alpha kb = forwardChain' (hornify (cnf alpha)) (prepareFC kb)
 
 let rec makeConstant s x =
     let rec makeConstantExpr e x =
