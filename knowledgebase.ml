@@ -8,4 +8,6 @@ Equals((Const (Name "Parker")),(Const (Name "Arman")));
 ] in
 (* let alpha = Exists ("x", Equals (Var "x", Const (Name "Arman"))) in *)
 let alpha = (ForAll ("x", (Implies ((Equals(Const (Name "Parker"), Var "x"), (Equals((Var "x"),(Const (Name "Ry"))))))))) in
-forwardChain alpha kb
+
+let alpha2 = Equals((Const (Name "Parker")),(Const (Name "Ry"))) in
+forwardChain alpha2 kb
