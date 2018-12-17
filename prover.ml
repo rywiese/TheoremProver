@@ -609,7 +609,7 @@ let rec numLits s =
 let rec unifiesWithAny s l =
     match l with
     | [] -> false
-    | (h::t) -> if unifyStmt s h <> Failure then true else unifiesWithAny s t
+    | (h::t) -> if unifyStmt (cnf s) (cnf h) <> Failure then true else unifiesWithAny s t
 let rec getSubsFC' p rules =
     match rules with
     | [] -> []
@@ -634,9 +634,9 @@ let rec forwardChainLoop alpha rest kb old =
         )
 let rec forwardChain' alpha kb =
     let noo = forwardChainLoop alpha kb kb [] in
-    if unifiesWithAny alpha (prepare (union noo kb)) then true else
+    if unifiesWithAny alpha (prepare (union noo kb)) then ["true"] else
     match noo with
-    | [] -> false
+    | [] -> ["false"]
     | (h::t) -> forwardChain' alpha (union noo kb)
 let forwardChain alpha kb = forwardChain' (hornify (cnf alpha)) (prepareFC kb)
 
@@ -674,7 +674,7 @@ let rec makeSkol s x bv =
     | Equals (e1, e2) -> Equals (makeSkolExpr e1 x bv, makeSkolExpr e2 x bv)
     | LessThan (e1, e2) -> LessThan (makeSkolExpr e1 x bv, makeSkolExpr e2 x bv)
     | _ -> s
-let prove s kb =
+let proveResolution s kb =
     let rec prove' s kb bv proof =
         match s with
         | True -> []
@@ -688,4 +688,20 @@ let prove s kb =
         | Not (Exists (x, s')) -> prove' (ForAll (x, Not s')) kb bv proof
         | Not (Implies (s1, s2)) -> prove' (Not (And (s1, Not s2))) kb bv proof
         | _ -> concat ((resolution s kb)) proof
+    in revlist (prove' s kb [] [])
+
+let proveFC s kb =
+    let rec prove' s kb bv proof =
+        match s with
+        | True -> []
+        | False -> ["The statement is not entailed"]
+        | ForAll (x, s') -> prove' (makeConstant s' x) kb (x::bv) (("Given " ^ x)::proof)
+        | Exists (x, s') -> prove' (makeSkol s' x bv) kb bv (("Let " ^ x ^ " = " ^ (exprToString (Const (Skol (x,bv)))))::proof)
+        | Implies (s1, s2) -> prove' s2 (s1::kb) bv (("Assume " ^ (stmtToString s1))::proof)
+        | And (s1, s2) -> let (p1,p2) = (prove' s1 kb bv [], prove' s2 kb bv []) in
+                concat (("Proof of " ^ (stmtToString s1))::p1) (("Proof of " ^ (stmtToString s2))::p2)
+        | Not (ForAll (x, s')) -> prove' (Exists (x, Not s')) kb bv proof
+        | Not (Exists (x, s')) -> prove' (ForAll (x, Not s')) kb bv proof
+        | Not (Implies (s1, s2)) -> prove' (Not (And (s1, Not s2))) kb bv proof
+        | _ -> concat ((forwardChain s kb)) proof
     in revlist (prove' s kb [] [])
