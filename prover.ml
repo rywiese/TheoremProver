@@ -406,6 +406,7 @@ let rec splitKB kb =
 let rec andifyKB kb =
     match kb with
     | [] -> True
+    | h::[] -> h
     | h::t -> And (h, (andifyKB t))
 let prepare kb = splitKB (cnf (andifyKB kb))
 let clauseToList c =
@@ -609,12 +610,11 @@ let rec unifiesWithAny s l =
     match l with
     | [] -> false
     | (h::t) -> if unifyStmt s h <> Failure then true else unifiesWithAny s t
-let getSubsFC p kb =
-    let rec getSubsFC' p rules =
-        match rules with
-        | [] -> []
-        | rule::rest -> union [(unifyStmt p (andifyKB rule))] (getSubsFC' p rest) in
-    getSubsFC' p (setToTheNth kb (numLits p))
+let rec getSubsFC' p rules =
+    match rules with
+    | [] -> []
+    | rule::rest -> union [(unifyStmt (cnf p) (cnf (andifyKB rule)))] (getSubsFC' p rest)
+let getSubsFC p kb = getSubsFC' p (setToTheNth kb (numLits p))
 let rec forEachTheta q subs kb old =
     match subs with
     | [] -> old
