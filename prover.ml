@@ -615,30 +615,32 @@ let rec getSubsFC' p rules =
     | [] -> []
     | rule::rest -> union [(unifyStmt (cnf p) (cnf (andifyKB rule)))] (getSubsFC' p rest)
 let getSubsFC p kb = getSubsFC' p (setToTheNth kb (numLits p))
-let rec forEachTheta q subs kb old =
+let rec forEachTheta q subs kb old proof =
     match subs with
-    | [] -> old
-    | Failure::t -> forEachTheta q t kb old
+    | [] -> old, proof
+    | Failure::t -> forEachTheta q t kb old proof
     | s::t ->
         let q' = substitute q s in
-        if unifiesWithAny q' (prepare (union kb old)) then forEachTheta q t kb old
-        else forEachTheta q t kb (q'::old)
-let rec forwardChainLoop alpha rest kb old =
+        if unifiesWithAny q' (prepare (union kb old)) then forEachTheta q t kb old proof
+        else forEachTheta q t kb (q'::old) [stmtToString q']::proof
+let rec forwardChainLoop alpha rest kb old proof =
     match rest with
-    | [] -> old
+    | [] -> old,proof
     | rule::rest' -> (
         match rule with
         | Implies (p, q) ->
-            let subs = getSubsFC p kb in forwardChainLoop alpha rest' kb (forEachTheta q subs kb old)
-        | _ -> forwardChainLoop alpha rest' kb old
+            let subs = getSubsFC p kb in
+            let noo,proof' = forEachTheta q subs kb old in
+            forwardChainLoop alpha rest' kb noo proof'
+        | _ -> forwardChainLoop alpha rest' kb old proof
         )
-let rec forwardChain' alpha kb =
-    let noo = forwardChainLoop alpha kb kb [] in
-    if unifiesWithAny alpha (prepare (union noo kb)) then ["true"] else
+let rec forwardChain' alpha kb proof =
+    let noo,proof' = forwardChainLoop alpha kb kb [] proof in
+    if unifiesWithAny alpha (prepare (union noo kb)) then proof' else
     match noo with
-    | [] -> ["false"]
-    | (h::t) -> forwardChain' alpha (union noo kb)
-let forwardChain alpha kb = forwardChain' (hornify (cnf alpha)) (prepareFC kb)
+    | [] -> ["The statement is not entailed"]
+    | (h::t) -> forwardChain' alpha (union noo kb) proof'
+let forwardChain alpha kb = forwardChain' (hornify (cnf alpha)) (prepareFC kb) []
 
 let rec makeConstant s x =
     let rec makeConstantExpr e x =
