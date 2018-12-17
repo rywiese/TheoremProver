@@ -494,7 +494,7 @@ let expandCNF s sub = addImp (addExists (addForAlls (substitute s sub)))
 let addToProof s proof =
     match proof with
     | [] -> [s]
-    | h::t -> if h = "Contradiction." then proof else s::proof
+    | h::t -> if (h = "Contradiction.") || (h = "Q.E.D") then proof else s::proof
 let concatProofs p1 p2 =
     if isIn "Contradiction." p2 then p2 else union p1 p2
 
@@ -610,27 +610,34 @@ let rec unifiesWithAny s l =
     match l with
     | [] -> false
     | (h::t) -> if unifyStmt (cnf s) (cnf h) <> Failure then true else unifiesWithAny s t
-let rec getSubsFC' p rules =
+let rec getSubsFC' p q rules =
     match rules with
     | [] -> []
-    | rule::rest -> union [(unifyStmt (cnf p) (cnf (andifyKB rule)))] (getSubsFC' p rest)
-let getSubsFC p kb = getSubsFC' p (setToTheNth kb (numLits p))
-let rec forEachTheta q subs kb old proof =
+    | rule::rest -> (
+        let p',r' = (cnf p),(cnf (andifyKB rule)) in
+        match (unifyStmt p' r') with
+        | Failure -> getSubsFC' p q rest
+        | Subst s -> union [((Subst s),((stmtToString (expandCNF (Implies (p, q)) (Subst []))) ^ " and " ^ (stmtToString (andifyKB rule)) ^ ", therefore "))] (getSubsFC' p q rest)
+        )
+let getSubsFC p q kb = getSubsFC' p q (setToTheNth kb (numLits p))
+let rec forEachTheta q subs alpha kb old proof =
     match subs with
     | [] -> old, proof
-    | Failure::t -> forEachTheta q t kb old proof
-    | s::t ->
-        let q' = substitute q s in
-        if unifiesWithAny q' (prepare (union kb old)) then forEachTheta q t kb old proof
-        else forEachTheta q t kb (q'::old) ((stmtToString q')::proof)
+    | (Failure, subProof)::t -> forEachTheta q t alpha kb old proof
+    | (Subst s, subProof)::t ->
+        let q' = substitute q (Subst s) in
+        if unifyStmt q' alpha <> Failure then
+            (q'::old), ("Q.E.D"::(addToProof (subProof ^ (stmtToString q')) proof))
+        else if unifiesWithAny q' (prepare (union kb old)) then forEachTheta q t alpha kb old proof
+        else forEachTheta q t alpha kb (q'::old) (addToProof (subProof ^ (stmtToString q')) proof)
 let rec forwardChainLoop alpha rest kb old proof =
     match rest with
     | [] -> old,proof
     | rule::rest' -> (
         match rule with
         | Implies (p, q) ->
-            let subs = getSubsFC p kb in
-            let noo,proof' = forEachTheta q subs kb old proof in
+            let subs = getSubsFC p q kb in
+            let noo,proof' = forEachTheta q subs alpha kb old proof in
             forwardChainLoop alpha rest' kb noo proof'
         | _ -> forwardChainLoop alpha rest' kb old proof
         )
