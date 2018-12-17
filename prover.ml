@@ -718,4 +718,5 @@ let proveFC s kb =
 let rec batchProve alphas kb =
     match alphas with
     | [] -> []
-    | h::t -> ((proveResolution h kb),(proveFC h kb))::(batchProve t kb)
+    | h::t -> ((("Proof of " ^ (stmtToString h) ^ " using resolution:")::(proveResolution h kb)),(("Proof of " ^ (stmtToString h) ^ " using forward chaining:")::(proveFC h kb)),
+        "                                                                                                                                                  ")::(batchProve t kb)
