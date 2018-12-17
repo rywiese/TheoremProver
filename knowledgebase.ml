@@ -6,7 +6,14 @@ ForAll("x", LessThan(Var "x", Plus(Var "x", Const(Int 1))));
 Equals((Const (Name "Ry")),(Const (Name "Arman")));
 Equals((Const (Name "Parker")),(Const (Name "Arman")));
 ] in
+let alphas = [
+Equals((Const (Name "Parker")),(Const (Name "Arman")));
+Exists ("x", Equals (Var "x", Const (Name "Arman")));
+(ForAll ("x", (Implies ((Equals(Const (Name "Parker"), Var "x"), (Equals((Var "x"),(Const (Name "Ry")))))))));
+] in
+batchProve alphas kb
+
 let alpha1 = Equals((Const (Name "Parker")),(Const (Name "Arman"))) in
-(* let alpha = Exists ("x", Equals (Var "x", Const (Name "Arman"))) in *)
+let alpha = Exists ("x", Equals (Var "x", Const (Name "Arman"))) in
 let alpha2 = (ForAll ("x", (Implies ((Equals(Const (Name "Parker"), Var "x"), (Equals((Var "x"),(Const (Name "Ry"))))))))) in
 proveFC alpha2 kb

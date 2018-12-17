@@ -714,3 +714,8 @@ let proveFC s kb =
         | Not (Implies (s1, s2)) -> prove' (Not (And (s1, Not s2))) kb bv proof
         | _ -> concat ((forwardChain s kb)) proof
     in revlist (prove' s kb [] [])
+
+let rec batchProve alphas kb =
+    match alphas with
+    | [] -> []
+    | h::t -> ((proveResolution h kb),(proveFC h kb))::(batchProve t kb)
