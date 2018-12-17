@@ -632,21 +632,6 @@ let rec forwardChainLoop alpha rest kb old =
             let subs = getSubsFC p kb in forwardChainLoop alpha rest' kb (forEachTheta q subs kb old)
         | _ -> forwardChainLoop alpha rest' kb old
         )
-(* let rec forwardChainLoop alpha crossKB kb old =
-    match crossKB with
-    | [] -> old
-    | (rule, rule')::rest -> (
-        match rule with
-        | Implies (p, q) ->
-            let sub = unifyStmt p rule' in
-            if sub <> Failure then (
-                let q' = substitute q sub in
-                if (unifiesWithAny q' (union kb old)) then forwardChainLoop alpha rest kb old
-                else forwardChainLoop alpha rest kb (q'::old)
-            )
-            else forwardChainLoop alpha rest kb old
-        | _ -> forwardChainLoop alpha rest kb old
-        ) *)
 let rec forwardChain' alpha kb =
     let noo = forwardChainLoop alpha kb kb [] in
     if unifiesWithAny alpha (prepare (union noo kb)) then true else
