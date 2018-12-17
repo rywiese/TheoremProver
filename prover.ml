@@ -384,7 +384,13 @@ let unifyStmt s1 s2 =
         | (ForAll (v1, s1')), (ForAll (v2, s2')) -> unifyStmt' s1' s2' sub
         | (Exists (v1, s1')), (Exists (v2, s2')) -> unifyStmt' s1' s2' sub
         | (Implies (s11, s12)), (Implies (s21, s22)) -> substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub)
-        | (And (s11, s12)), (And (s21, s22)) -> substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub)
+        | (And (s11, s12)), (And (s21, s22)) ->
+            let sub1 = substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub) in
+            let sub2 = substUnion (unifyStmt' s11 s22 sub) (unifyStmt' s12 s21 sub) in
+            (match sub1,sub2 with
+            | Failure,_ -> sub2
+            | _,Failure -> sub1
+            | _,_ -> substUnion sub1 sub2)
         | (Or (s11, s12)), (Or (s21, s22)) -> substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub)
         | (Not s1'), (Not s2') -> unifyStmt' s1' s2' sub
         | (Equals (e11,e12)), (Equals (e21,e22)) -> substUnion (unifyExpr e11 e21) (unifyExpr e12 e22)
@@ -615,7 +621,7 @@ let rec forEachTheta q subs kb old =
     | Failure::t -> forEachTheta q t kb old
     | s::t ->
         let q' = substitute q s in
-        if unifiesWithAny q' (union kb old) then forEachTheta q t kb old
+        if unifiesWithAny q' (prepare (union kb old)) then forEachTheta q t kb old
         else forEachTheta q t kb (q'::old)
 let rec forwardChainLoop alpha rest kb old =
     match rest with
@@ -643,7 +649,7 @@ let rec forwardChainLoop alpha rest kb old =
         ) *)
 let rec forwardChain' alpha kb =
     let noo = forwardChainLoop alpha kb kb [] in
-    if unifiesWithAny alpha (union noo kb) then true else
+    if unifiesWithAny alpha (prepare (union noo kb)) then true else
     match noo with
     | [] -> false
     | (h::t) -> forwardChain' alpha (union noo kb)
