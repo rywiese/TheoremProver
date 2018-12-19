@@ -384,7 +384,13 @@ let unifyStmt s1 s2 =
         | (ForAll (v1, s1')), (ForAll (v2, s2')) -> unifyStmt' s1' s2' sub
         | (Exists (v1, s1')), (Exists (v2, s2')) -> unifyStmt' s1' s2' sub
         | (Implies (s11, s12)), (Implies (s21, s22)) -> substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub)
-        | (And (s11, s12)), (And (s21, s22)) -> substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub)
+        | (And (s11, s12)), (And (s21, s22)) ->
+            let sub1 = substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub) in
+            let sub2 = substUnion (unifyStmt' s11 s22 sub) (unifyStmt' s12 s21 sub) in
+            (match sub1,sub2 with
+            | Failure,_ -> sub2
+            | _,Failure -> sub1
+            | _,_ -> substUnion sub1 sub2)
         | (Or (s11, s12)), (Or (s21, s22)) -> substUnion (unifyStmt' s11 s21 sub) (unifyStmt' s12 s22 sub)
         | (Not s1'), (Not s2') -> unifyStmt' s1' s2' sub
         | (Equals (e11,e12)), (Equals (e21,e22)) -> substUnion (unifyExpr e11 e21) (unifyExpr e12 e22)
@@ -400,6 +406,7 @@ let rec splitKB kb =
 let rec andifyKB kb =
     match kb with
     | [] -> True
+    | h::[] -> h
     | h::t -> And (h, (andifyKB t))
 let prepare kb = splitKB (cnf (andifyKB kb))
 let clauseToList c =
@@ -487,7 +494,7 @@ let expandCNF s sub = addImp (addExists (addForAlls (substitute s sub)))
 let addToProof s proof =
     match proof with
     | [] -> [s]
-    | h::t -> if h = "Contradiction." then proof else s::proof
+    | h::t -> if (h = "Contradiction.") || (h = "Q.E.D") then proof else s::proof
 let concatProofs p1 p2 =
     if isIn "Contradiction." p2 then p2 else union p1 p2
 
@@ -602,52 +609,45 @@ let rec numLits s =
 let rec unifiesWithAny s l =
     match l with
     | [] -> false
-    | (h::t) -> if unifyStmt s h <> Failure then true else unifiesWithAny s t
-let getSubsFC p kb =
-    let rec getSubsFC' p rules =
-        match rules with
-        | [] -> []
-        | rule::rest -> union [(unifyStmt p (andifyKB rule))] (getSubsFC' p rest) in
-    getSubsFC' p (setToTheNth kb (numLits p))
-let rec forEachTheta q subs kb old =
+    | (h::t) -> if unifyStmt (cnf s) (cnf h) <> Failure then true else unifiesWithAny s t
+let rec getSubsFC' p q rules =
+    match rules with
+    | [] -> []
+    | rule::rest -> (
+        let p',r' = (cnf p),(cnf (andifyKB rule)) in
+        match (unifyStmt p' r') with
+        | Failure -> getSubsFC' p q rest
+        | Subst s -> union [((Subst s),((stmtToString (expandCNF (Implies (p, q)) (Subst []))) ^ " and " ^ (stmtToString (andifyKB rule)) ^ ", therefore "))] (getSubsFC' p q rest)
+        )
+let getSubsFC p q kb = getSubsFC' p q (setToTheNth kb (numLits p))
+let rec forEachTheta q subs alpha kb old proof =
     match subs with
-    | [] -> old
-    | Failure::t -> forEachTheta q t kb old
-    | s::t ->
-        let q' = substitute q s in
-        if unifiesWithAny q' (union kb old) then forEachTheta q t kb old
-        else forEachTheta q t kb (q'::old)
-let rec forwardChainLoop alpha rest kb old =
+    | [] -> old, proof
+    | (Failure, subProof)::t -> forEachTheta q t alpha kb old proof
+    | (Subst s, subProof)::t ->
+        let q' = substitute q (Subst s) in
+        if unifyStmt q' alpha <> Failure then
+            (q'::old), ("Q.E.D"::(addToProof (subProof ^ (stmtToString q')) proof))
+        else if unifiesWithAny q' (prepare (union kb old)) then forEachTheta q t alpha kb old proof
+        else forEachTheta q t alpha kb (q'::old) (addToProof (subProof ^ (stmtToString q')) proof)
+let rec forwardChainLoop alpha rest kb old proof =
     match rest with
-    | [] -> old
+    | [] -> old,proof
     | rule::rest' -> (
         match rule with
         | Implies (p, q) ->
-            let subs = getSubsFC p kb in forwardChainLoop alpha rest' kb (forEachTheta q subs kb old)
-        | _ -> forwardChainLoop alpha rest' kb old
+            let subs = getSubsFC p q kb in
+            let noo,proof' = forEachTheta q subs alpha kb old proof in
+            forwardChainLoop alpha rest' kb noo proof'
+        | _ -> forwardChainLoop alpha rest' kb old proof
         )
-(* let rec forwardChainLoop alpha crossKB kb old =
-    match crossKB with
-    | [] -> old
-    | (rule, rule')::rest -> (
-        match rule with
-        | Implies (p, q) ->
-            let sub = unifyStmt p rule' in
-            if sub <> Failure then (
-                let q' = substitute q sub in
-                if (unifiesWithAny q' (union kb old)) then forwardChainLoop alpha rest kb old
-                else forwardChainLoop alpha rest kb (q'::old)
-            )
-            else forwardChainLoop alpha rest kb old
-        | _ -> forwardChainLoop alpha rest kb old
-        ) *)
-let rec forwardChain' alpha kb =
-    let noo = forwardChainLoop alpha kb kb [] in
-    if unifiesWithAny alpha (union noo kb) then true else
+let rec forwardChain' alpha kb proof =
+    let noo,proof' = forwardChainLoop alpha kb kb [] proof in
+    if unifiesWithAny alpha (prepare (union noo kb)) then proof' else
     match noo with
-    | [] -> false
-    | (h::t) -> forwardChain' alpha (union noo kb)
-let forwardChain alpha kb = forwardChain' (hornify (cnf alpha)) (prepareFC kb)
+    | [] -> ["The statement is not entailed"]
+    | (h::t) -> forwardChain' alpha (union noo kb) proof'
+let forwardChain alpha kb = forwardChain' (hornify (cnf alpha)) (prepareFC kb) []
 
 let rec makeConstant s x =
     let rec makeConstantExpr e x =
@@ -683,7 +683,7 @@ let rec makeSkol s x bv =
     | Equals (e1, e2) -> Equals (makeSkolExpr e1 x bv, makeSkolExpr e2 x bv)
     | LessThan (e1, e2) -> LessThan (makeSkolExpr e1 x bv, makeSkolExpr e2 x bv)
     | _ -> s
-let prove s kb =
+let proveResolution s kb =
     let rec prove' s kb bv proof =
         match s with
         | True -> []
@@ -698,3 +698,25 @@ let prove s kb =
         | Not (Implies (s1, s2)) -> prove' (Not (And (s1, Not s2))) kb bv proof
         | _ -> concat ((resolution s kb)) proof
     in revlist (prove' s kb [] [])
+
+let proveFC s kb =
+    let rec prove' s kb bv proof =
+        match s with
+        | True -> []
+        | False -> ["The statement is not entailed"]
+        | ForAll (x, s') -> prove' (makeConstant s' x) kb (x::bv) (("Given " ^ x)::proof)
+        | Exists (x, s') -> prove' (makeSkol s' x bv) kb bv (("Let " ^ x ^ " = " ^ (exprToString (Const (Skol (x,bv)))))::proof)
+        | Implies (s1, s2) -> prove' s2 (s1::kb) bv (("Assume " ^ (stmtToString s1))::proof)
+        | And (s1, s2) -> let (p1,p2) = (prove' s1 kb bv [], prove' s2 kb bv []) in
+                concat (("Proof of " ^ (stmtToString s1))::p1) (("Proof of " ^ (stmtToString s2))::p2)
+        | Not (ForAll (x, s')) -> prove' (Exists (x, Not s')) kb bv proof
+        | Not (Exists (x, s')) -> prove' (ForAll (x, Not s')) kb bv proof
+        | Not (Implies (s1, s2)) -> prove' (Not (And (s1, Not s2))) kb bv proof
+        | _ -> concat ((forwardChain s kb)) proof
+    in revlist (prove' s kb [] [])
+
+let rec batchProve alphas kb =
+    match alphas with
+    | [] -> []
+    | h::t -> ((("Proof of " ^ (stmtToString h) ^ " using resolution:")::(proveResolution h kb)),(("Proof of " ^ (stmtToString h) ^ " using forward chaining:")::(proveFC h kb)),
+        "                                                                                                                                                  ")::(batchProve t kb)
