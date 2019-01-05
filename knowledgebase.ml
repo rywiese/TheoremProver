@@ -24,7 +24,6 @@ let alpha4 = Not (LessThan ((Const (Name "Ry")),(Const (Name "Arman")))) in
 let alpha5 = ForAll ("x", ForAll ("y", Exists ("z", LessThan (Plus (Var "x", Var "y"),(Var "z"))))) in
 let alpha6 = ForAll ("x", Exists ("y", Equals (Var "x", Var "y"))) in
 let alpha7 = ForAll ("x", Exists ("y", LessThan (Times (Var "x", Var "x"),Var "y"))) in
-(* Exists ("x", Equals (Var "x", Times (Var "x", Var "x"))); THIS NEVER TERMINATES *)
 let alpha8 = ForAll ("x", LessThan (Times (Var "x", Var "x"), Times (Times (Var "x",Var "x"),Var "x"))) in
 let alpha9 = LessThan (Times (Const (Name "Arman"), (Const (Name "Arman"))), Times (Const (Name "Ry"), (Const (Name "Ry")))) in
 let alpha10 = LessThan (Times (Const (Name "Arman"), (Const (Name "Parker"))), Times (Const (Name "Ry"), (Const (Name "Parker")))) in
@@ -34,4 +33,4 @@ let alpha13 = ForAll ("x", Exists ("y", LessThan(Times (Var "x",Plus (Const (Int
 let alpha14 = Not (Exists ("x", ForAll ("y", (LessThan (Var "y", Var "x"))))) in
 let alpha15 = Not (ForAll ("x", (LessThan (Var "x", Times (Var "x", Var "x"))))) in
 
-proveResolution alpha1 kb
+proveResolution alpha5 kb

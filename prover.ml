@@ -491,10 +491,10 @@ let rec addImp s =
     | _ -> s
 let expandCNF s sub = addImp (addExists (addForAlls (substitute s sub)))
 
-let addToProof s proof =
-    match proof with
+let addToProof s proof = s::proof
+    (* match proof with
     | [] -> [s]
-    | h::t -> if (h = "Contradiction.") || (h = "Q.E.D") then proof else s::proof
+    | h::t -> if (h = "Contradiction.") || (h = "Q.E.D") then proof else s::proof *)
 let concatProofs p1 p2 =
     if isIn "Contradiction." p2 then p2 else union p1 p2
 
