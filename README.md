@@ -1,1 +1,2 @@
 # TheoremProver
+This is a program written in OCaml that employs resolution and forward chaining techniques to generate mathematical proofs of basic statements in first order logic. A research paper is included that analyzes the results of an experiment designed to test the performance of the program. Created by Ry Wiese and Arman Shah for CSCI 4511W Intro to Artificial Intelligence at the University of Minnesota.
